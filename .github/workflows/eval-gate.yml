@@ -117,6 +117,13 @@ jobs:
         env:
           GOLDEN_LIMIT: ${{ github.event_name == 'pull_request' && '10' || github.event.inputs.golden_limit }}
         run: |
+          sed -i '1s/^\xEF\xBB\xBF//' scripts/ci_eval_gate.sh
           chmod +x scripts/ci_eval_gate.sh
           if [ -z "${GOLDEN_LIMIT}" ]; then unset GOLDEN_LIMIT; fi
+          for i in $(seq 1 30); do
+            if PGPASSWORD=studypilot psql -h 127.0.0.1 -p 5433 -U studypilot -d studypilot -c "SELECT 1" >/dev/null 2>&1; then
+              echo "Postgres accepting connections"; break
+            fi
+            sleep 2
+          done
           ./scripts/ci_eval_gate.sh

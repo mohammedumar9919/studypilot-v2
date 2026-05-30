@@ -20,7 +20,7 @@ This is the **single source of truth** for execution status. A new Cursor chat s
 | Course TOC browse (pre-query) | **DONE** (Agent D API + Agent E sidebar) |
 | Query streaming UX (SSE) | **DONE** (Agent D API + Agent E UI, Wave 3) |
 
-**Immediate goal:** Verify Git LFS + GitHub retrieval gate (SP-003), then Wave 4a visual design pass. See [WORKER_TASK_CARDS_QUEUE.md](WORKER_TASK_CARDS_QUEUE.md).
+**Immediate goal:** Wave 4a visual design pass (SP-035). SP-003 GitHub retrieval gate **DONE** (Git LFS + job executes). See [WORKER_TASK_CARDS_QUEUE.md](WORKER_TASK_CARDS_QUEUE.md).
 
 ---
 
@@ -69,7 +69,7 @@ Reports: `eval/reports/PHASE1B_SUMMARY_FOR_AGENT.txt`, `eval/reports/latest.json
 | Local Phase 3 gate (`quick_gate.ps1`) | **DONE** — 100% (40/40), OOC 10/10 (user verified) |
 | `POST /api/v1/query/stream` (SSE) | **DONE** (Agent D, pytest 6/6 stream + query API 13/13) |
 | Streaming UI + non-stream fallback | **DONE** (Agent E, `npm run build` PASS) |
-| Full retrieval gate in GitHub CI | **PARTIAL** — LFS wired; verify `retrieval-gate` on PR (see [CI_SETUP.md](CI_SETUP.md)) |
+| Full retrieval gate in GitHub CI | **DONE** — PPL PDFs via Git LFS; `retrieval-gate` runs ingest + eval (not skipped) |
 
 **Stream contract:** `retrieval_complete` → `token` → `done` (refusal: `done` only). Documented in [api-contracts.md](api-contracts.md).
 
@@ -90,9 +90,8 @@ Reports: `eval/reports/PHASE1B_SUMMARY_FOR_AGENT.txt`, `eval/reports/latest.json
 
 | # | Wave | Owner | Task |
 |---|------|-------|------|
-| 1 | **3.5** | Lead / ops | Git LFS for `eval/fixtures/ppl/*.pdf` → full GitHub CI gate (SP-003) |
-| 2 | **4a** | Lead + you → Agent E | Visual design pass (SP-035) — **after 3.5, before upload** |
-| 3 | **4b** | Agent D + E | Upload API (SP-017), onboarding (SP-031); auth (SP-012) later |
+| 1 | **4a** | Lead + you → Agent E | Visual design pass (SP-035) — **before upload** |
+| 2 | **4b** | Agent D + E | Upload API (SP-017), onboarding (SP-031); auth (SP-012) later |
 
 **Styling:** Short Lead session to lock aesthetic → Agent E implements tokens in `apps/web`. See [WORKER_TASK_CARDS_QUEUE.md](WORKER_TASK_CARDS_QUEUE.md) Wave 4a placeholder.
 
