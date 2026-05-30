@@ -34,8 +34,11 @@ jobs:
     env:
       DATABASE_URL: postgresql+psycopg://studypilot:studypilot@localhost:5433/studypilot
       TEST_DATABASE_URL: postgresql+psycopg://studypilot:studypilot@localhost:5433/studypilot_test
+      OPENROUTER_API_KEY: ci-placeholder-not-used
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
