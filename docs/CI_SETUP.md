@@ -13,7 +13,7 @@ PPL PDFs are stored in **Git LFS**. After cloning:
 
 ```powershell
 git lfs install
-git clone <repo-url> studypilot-v2
+git clone https://github.com/mohammedumar9919/studypilot-v2.git studypilot-v2
 cd studypilot-v2
 git lfs pull
 ```
@@ -29,7 +29,7 @@ Linux / macOS:
 
 ```bash
 git lfs install
-git clone <repo-url> studypilot-v2
+git clone https://github.com/mohammedumar9919/studypilot-v2.git studypilot-v2
 cd studypilot-v2
 git lfs pull
 test -f "eval/fixtures/ppl/PPL notes.pdf" && echo OK

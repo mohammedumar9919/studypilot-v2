@@ -20,7 +20,7 @@ This is the **single source of truth** for execution status. A new Cursor chat s
 | Course TOC browse (pre-query) | **DONE** (Agent D API + Agent E sidebar) |
 | Query streaming UX (SSE) | **DONE** (Agent D API + Agent E UI, Wave 3) |
 
-**Immediate goal:** Git LFS for PPL PDFs → full GitHub CI retrieval gate (SP-003). See [WORKER_TASK_CARDS_QUEUE.md](WORKER_TASK_CARDS_QUEUE.md).
+**Immediate goal:** Verify Git LFS + GitHub retrieval gate (SP-003), then Wave 4a visual design pass. See [WORKER_TASK_CARDS_QUEUE.md](WORKER_TASK_CARDS_QUEUE.md).
 
 ---
 
@@ -69,7 +69,7 @@ Reports: `eval/reports/PHASE1B_SUMMARY_FOR_AGENT.txt`, `eval/reports/latest.json
 | Local Phase 3 gate (`quick_gate.ps1`) | **DONE** — 100% (40/40), OOC 10/10 (user verified) |
 | `POST /api/v1/query/stream` (SSE) | **DONE** (Agent D, pytest 6/6 stream + query API 13/13) |
 | Streaming UI + non-stream fallback | **DONE** (Agent E, `npm run build` PASS) |
-| Full retrieval gate in GitHub CI | **PARTIAL** — skips until PPL PDFs in repo (see [CI_SETUP.md](CI_SETUP.md)) |
+| Full retrieval gate in GitHub CI | **PARTIAL** — LFS wired; verify `retrieval-gate` on PR (see [CI_SETUP.md](CI_SETUP.md)) |
 
 **Stream contract:** `retrieval_complete` → `token` → `done` (refusal: `done` only). Documented in [api-contracts.md](api-contracts.md).
 
