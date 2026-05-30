@@ -1,0 +1,205 @@
+# PPL previous papers.pdf — human-reviewable PYQ → unit/section seed (v1)
+#
+# OCR re-ingest complete (Phase 3C-A2): ~26/30 pages readable; seed still maps page 3
+# (July 2021 exam) in detail. Other readable pages contribute via keyword matching.
+#
+# Page index: 1-based (matches chunk.page in DB for past_paper ingest).
+
+course: PPL
+document: PPL previous papers.pdf
+coverage_note: "partial — seed maps page 3 in detail; remaining pages via OCR + keyword estimate"
+
+covered_pages:
+  - 3
+
+exam_papers:
+  - label: "July 2021 Main & Backlog"
+    page: 3
+    year: 2021
+    month: July
+
+# Each entry = one exam question or sub-question mapped to notes taxonomy (ppl_outline.yaml).
+questions:
+  # --- PART A (10 × 2 marks) ---
+  - id: pyq-2021-07-a01
+    page: 3
+    part: A
+    prompt: "Programming language dominating AI over 40 years"
+    unit: "5"
+    section_title: "Functional Programming Languages & Scripting Language"
+
+  - id: pyq-2021-07-a02
+    page: 3
+    part: A
+    prompt: "Denotational Semantics basic concept"
+    unit: "1"
+    section_title: "Syntax and Semantics"
+
+  - id: pyq-2021-07-a03
+    page: 3
+    part: A
+    prompt: "Left recursive grammar rule"
+    unit: "1"
+    section_title: "Syntax and Semantics"
+
+  - id: pyq-2021-07-a04
+    page: 3
+    part: A
+    prompt: "Three fundamental features of OOP"
+    unit: "4"
+    section_title: "Abstract Data Types & Object-Oriented Programming"
+
+  - id: pyq-2021-07-a05
+    page: 3
+    part: A
+    prompt: "Three EBNF extensions"
+    unit: "1"
+    section_title: "Syntax and Semantics"
+
+  - id: pyq-2021-07-a06
+    page: 3
+    part: A
+    prompt: "Weakest precondition for assignment statements"
+    unit: "1"
+    section_title: "Syntax and Semantics"
+
+  - id: pyq-2021-07-a07
+    page: 3
+    part: A
+    prompt: "Operator precedence and associativity"
+    unit: "2"
+    section_title: "Expressions and Statements & Control Structures"
+
+  - id: pyq-2021-07-a08
+    page: 3
+    part: A
+    prompt: "Short-circuit evaluation with example"
+    unit: "2"
+    section_title: "Expressions and Statements & Control Structures"
+
+  - id: pyq-2021-07-a09
+    page: 3
+    part: A
+    prompt: "Functional form"
+    unit: "5"
+    section_title: "Functional Programming Languages & Scripting Language"
+
+  - id: pyq-2021-07-a10
+    page: 3
+    part: A
+    prompt: "Horn Clauses general form and classification"
+    unit: "4"
+    section_title: "Exception Handling & Logic Programming Language"
+
+  # --- PART B sub-questions (July 2021) ---
+  - id: pyq-2021-07-b11a
+    page: 3
+    part: B
+    prompt: "Reasons for studying programming language concepts"
+    unit: "1"
+    section_title: "Preliminary Concepts"
+
+  - id: pyq-2021-07-b11b
+    page: 3
+    part: B
+    prompt: "Language evaluation criteria"
+    unit: "1"
+    section_title: "Preliminary Concepts"
+
+  - id: pyq-2021-07-b12a
+    page: 3
+    part: B
+    prompt: "Prove grammar is ambiguous"
+    unit: "1"
+    section_title: "Syntax and Semantics"
+
+  - id: pyq-2021-07-b12b
+    page: 3
+    part: B
+    prompt: "Static, stack-dynamic, fixed heap-dynamic, heap-dynamic arrays"
+    unit: "2"
+    section_title: "Data Types and Variables"
+
+  - id: pyq-2021-07-b13a
+    page: 3
+    part: B
+    prompt: "Implementation models of parameter passing"
+    unit: "3"
+    section_title: "Subprograms and Blocks"
+
+  - id: pyq-2021-07-b13b
+    page: 3
+    part: B
+    prompt: "Templates in C++"
+    unit: "4"
+    section_title: "Abstract Data Types & Object-Oriented Programming"
+
+  - id: pyq-2021-07-b14a
+    page: 3
+    part: B
+    prompt: "Concurrency in Java using threads"
+    unit: "4"
+    section_title: "Abstract Data Types & Object-Oriented Programming"
+
+  - id: pyq-2021-07-b14b
+    page: 3
+    part: B
+    prompt: "User-defined exception in Ada"
+    unit: "4"
+    section_title: "Exception Handling & Logic Programming Language"
+
+  - id: pyq-2021-07-b15a
+    page: 3
+    part: B
+    prompt: "Prolog headed Horn clauses (English conditionals)"
+    unit: "4"
+    section_title: "Exception Handling & Logic Programming Language"
+
+  - id: pyq-2021-07-b15b
+    page: 3
+    part: B
+    prompt: "Backtracking in Prolog with example"
+    unit: "4"
+    section_title: "Exception Handling & Logic Programming Language"
+
+  - id: pyq-2021-07-b16a
+    page: 3
+    part: B
+    prompt: "Multiple inheritance C++ vs Java interfaces"
+    unit: "4"
+    section_title: "Abstract Data Types & Object-Oriented Programming"
+
+  - id: pyq-2021-07-b16b
+    page: 3
+    part: B
+    prompt: "Prime number program in Python"
+    unit: "5"
+    section_title: "Functional Programming Languages & Scripting Language"
+
+  - id: pyq-2021-07-b17a
+    page: 3
+    part: B
+    prompt: "Attribute Grammar notes"
+    unit: "1"
+    section_title: "Syntax and Semantics"
+
+  - id: pyq-2021-07-b17b
+    page: 3
+    part: B
+    prompt: "Deep Access Method"
+    unit: "4"
+    section_title: "Abstract Data Types & Object-Oriented Programming"
+
+  - id: pyq-2021-07-b17c
+    page: 3
+    part: B
+    prompt: "Short notes on Functional Programming"
+    unit: "5"
+    section_title: "Functional Programming Languages & Scripting Language"
+
+# Future OCR — not counted until pages are readable and seed/OCR entries added.
+future_ocr_placeholders:
+  - pages: [1, 2]
+    note: "Cover / index pages — pending OCR"
+  - pages: [4, 29]
+    note: "Remaining scanned exam papers — pending OCR re-ingest"

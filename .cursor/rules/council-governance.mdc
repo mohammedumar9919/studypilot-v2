@@ -1,0 +1,12 @@
+﻿---
+description: Council Stage 2 required for risky StudyPilot paths
+alwaysApply: true
+---
+
+# Council governance
+
+Read docs/COUNCIL_ORCHESTRATION.md before merging retrieval, schema, or golden set changes.
+
+- Stage 2 review required for retrieve/rerank/gate/golden_set/api-contracts
+- Eval: run_phase1b_eval_fast.ps1 only; maintain 100% precision@5 + OOC 10/10
+- Max 2-3 workers; one file one owner per AGENTS.md

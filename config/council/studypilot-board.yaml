@@ -1,0 +1,20 @@
+﻿council:
+  name: StudyPilot Engineering Board
+  agents:
+    - id: lead_chairman
+      role: Lead orchestrator
+      expertise: [phase_gates, merges, docs, task_cards]
+    - id: agent_b
+      role: Ingest and chunk quality
+      expertise: [pdf_extract, ocr, chunker, ingestion]
+    - id: agent_c
+      role: Retrieval and eval
+      expertise: [hybrid_search, rerank, gate, golden_set]
+    - id: agent_d
+      role: API and generation
+      expertise: [pipeline, generate, api_contracts]
+    - id: agent_e
+      role: Web and product UX
+      expertise: [react, student_mode, exam_ui]
+  rules:
+    council_required_for: [retrieve.py, rerank.py, gate.py, golden_set.jsonl, api-contracts.md]

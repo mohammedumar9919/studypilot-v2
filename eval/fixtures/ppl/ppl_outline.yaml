@@ -1,0 +1,76 @@
+# PPL notes.pdf — unit/section page map (0-based PDF page indices)
+# Seeded from eval/golden_set.jsonl unit + expected_pages and PDF body scan (2026-05-26).
+# REVIEW: adjust page_start/page_end before re-eval if chunk inspector shows wrong unit labels.
+
+document: PPL notes.pdf
+course: PPL
+page_index_base: 0
+page_count: 94
+
+front_matter:
+  title: Front matter
+  page_start: 0
+  page_end: 2
+  # REVIEW: cover + TOC only; no golden-set hits expected here
+
+units:
+  - id: "1"
+    title: Preliminary Concepts
+    page_start: 3
+    page_end: 16
+    sections:
+      - title: Preliminary Concepts
+        page_start: 3
+        page_end: 9
+      - title: Syntax and Semantics
+        page_start: 10
+        page_end: 16
+        # golden: ppl-004..ppl-010, ppl-052 (pages 11-16); ppl-009 spans 16-17 — page 17 is Unit 2 header
+
+  - id: "2"
+    title: Data Types and Variables
+    page_start: 17
+    page_end: 41
+    sections:
+      - title: Data Types and Variables
+        page_start: 17
+        page_end: 31
+        # golden: ppl-027 (19-21)
+      - title: Expressions and Statements & Control Structures
+        page_start: 32
+        page_end: 41
+        # golden: ppl-021..ppl-025 (33-42); REVIEW: upper bound may include page 41 only (Unit 3 starts 42)
+
+  - id: "3"
+    title: Subprograms and Blocks
+    page_start: 42
+    page_end: 49
+    sections:
+      - title: Subprograms and Blocks
+        page_start: 42
+        page_end: 49
+        # golden: ppl-029, ppl-030 (46-47); REVIEW: page 49 includes co-routines (3.7)
+
+  - id: "4"
+    title: Abstract Data Types
+    page_start: 50
+    page_end: 83
+    sections:
+      - title: Abstract Data Types & Object-Oriented Programming
+        page_start: 50
+        page_end: 73
+        # golden: ppl-033..ppl-035, ppl-042 (51-55, 72-73)
+      - title: Exception Handling & Logic Programming Language
+        page_start: 74
+        page_end: 83
+        # golden: ppl-036..ppl-037, ppl-039..ppl-040 (75-83); REVIEW: boundary at 74 from section header scan
+
+  - id: "5"
+    title: Functional Programming Languages
+    page_start: 84
+    page_end: 93
+    sections:
+      - title: Functional Programming Languages & Scripting Language
+        page_start: 84
+        page_end: 93
+        # golden: ppl-017, ppl-038, ppl-041, ppl-053, ppl-054 (85-88)

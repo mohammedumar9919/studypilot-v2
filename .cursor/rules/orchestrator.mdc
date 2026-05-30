@@ -1,0 +1,38 @@
+---
+description: Multi-agent orchestration — ownership, gates, Cursor delegation for studypilot-v2
+alwaysApply: true
+---
+
+# StudyPilot v2 orchestrator rules
+
+**Lead orchestrator:** read `docs/CURRENT_STATE.md` and `docs/LEAD_ORCHESTRATOR.md` first. See also `.cursor/rules/lead-orchestrator.mdc`.
+
+Before implementing, read `AGENTS.md`, `docs/orchestrator.md`, `eval/golden_set.jsonl`, and `docs/failures-checklist.md`.
+
+## Delegation
+
+- **Max 2–3 parallel writing agents.** More agents increase merge/review cost.
+- **One file, one owner.** Never assign two agents to `retrieve.py`, `pipeline.py`, `ingestion.py`, or `models.py`.
+- **Task card required:** allowed paths, forbidden paths, acceptance command (`.\scripts\phase_gate.ps1 -Phase <n>`).
+- **Parallel Phase 1:** ingest (B) and retrieval (C) only after `docs/api-contracts.md` is frozen.
+
+## Cursor subagent types
+
+| Type | Use for |
+|------|---------|
+| `explore` | Read-only audits — golden set gaps, ingest quality, contract drift |
+| `shell` | Docker, Alembic, pytest, `phase_gate.ps1`, `ingest_ppl.ps1` |
+| `generalPurpose` | Single vertical slice with explicit file ownership |
+
+Do not spawn subagents that edit the same paths concurrently.
+
+## Forbidden without orchestrator
+
+- Editing `.cursor/plans/*.plan.md`
+- Changing `docs/api-contracts.md` or Alembic schema during worker tasks
+- Cross-editing another agent's owned directories
+- New features before Phase 1c gate (precision@5 ≥ 70%, OOC 10/10)
+
+## Gates
+
+Human approves plan (Gate 1) and merge (Gate 2). Orchestrator runs `scripts/phase_gate.ps1` before merge.
