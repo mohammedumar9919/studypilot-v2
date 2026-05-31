@@ -9,7 +9,7 @@ interface AnswerPanelProps {
 export function AnswerPanel({ result, isStreaming = false }: AnswerPanelProps) {
   if (result.status === 'not_in_materials') {
     return (
-      <section className="panel answer-panel refusal">
+      <section className="panel answer-panel glass-panel refusal reveal-block">
         <h2>Not in materials</h2>
         <p>
           The confidence gate did not find relevant content in the course corpus for this
@@ -24,16 +24,16 @@ export function AnswerPanel({ result, isStreaming = false }: AnswerPanelProps) {
   const showAnswerSection = isStreaming || answerText.length > 0
 
   return (
-    <section className="panel answer-panel">
+    <section className="panel answer-panel glass-panel reveal-block">
       {showSources && (
-        <>
+        <div className="sources-reveal stagger-1">
           <h2>Sources</h2>
           <SourcesList sources={result.sources} debugChunks={result.retrieval_debug?.chunks} />
-        </>
+        </div>
       )}
 
       {showAnswerSection && (
-        <>
+        <div className={`answer-block stagger-2 ${isStreaming ? 'is-streaming' : ''}`}>
           {showSources ? <h3>Answer</h3> : <h2>Answer</h2>}
           <div className={`answer-text ${isStreaming ? 'answer-streaming' : ''}`}>
             {answerText}
@@ -42,7 +42,7 @@ export function AnswerPanel({ result, isStreaming = false }: AnswerPanelProps) {
           {isStreaming && answerText.length === 0 && (
             <p className="muted answer-streaming-hint">Writing answer from your sources…</p>
           )}
-        </>
+        </div>
       )}
     </section>
   )

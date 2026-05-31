@@ -1,17 +1,19 @@
 import { useMemo } from 'react'
+import type { CSSProperties } from 'react'
 
 import { useTopicFrequency } from '../hooks/useTopicFrequency'
 
 interface TopicFrequencyPanelProps {
   courseId: string
+  refreshToken?: number
 }
 
 function isPartialCoverage(note: string): boolean {
   return /partial/i.test(note)
 }
 
-export function TopicFrequencyPanel({ courseId }: TopicFrequencyPanelProps) {
-  const { data, loading, error, notFound, reload } = useTopicFrequency(courseId)
+export function TopicFrequencyPanel({ courseId, refreshToken = 0 }: TopicFrequencyPanelProps) {
+  const { data, loading, error, notFound, reload } = useTopicFrequency(courseId, refreshToken)
 
   const maxUnitCount = useMemo(() => {
     if (!data?.units.length) return 1
@@ -76,10 +78,10 @@ export function TopicFrequencyPanel({ courseId }: TopicFrequencyPanelProps) {
             <p className="muted">No past-paper units indexed for this course yet.</p>
           ) : (
             <div className="topic-frequency-chart">
-              {data.units.map((unit) => {
+              {data.units.map((unit, unitIndex) => {
                 const barWidth = Math.round((unit.count / maxUnitCount) * 100)
                 return (
-                  <details key={unit.unit} className="topic-unit-row" open={data.units.length <= 3}>
+                  <details key={unit.unit} className="topic-unit-row card-hover" open={data.units.length <= 3}>
                     <summary className="topic-unit-summary">
                       <span className="topic-unit-label">
                         Unit {unit.unit}: {unit.title}
@@ -88,7 +90,15 @@ export function TopicFrequencyPanel({ courseId }: TopicFrequencyPanelProps) {
                     </summary>
 
                     <div className="topic-bar-track" aria-hidden="true">
-                      <div className="topic-bar-fill" style={{ width: `${barWidth}%` }} />
+                      <div
+                        className="topic-bar-fill topic-bar-grow"
+                        style={
+                          {
+                            '--bar-width': `${barWidth}%`,
+                            '--bar-delay': `${unitIndex * 40}ms`,
+                          } as CSSProperties
+                        }
+                      />
                     </div>
 
                     {unit.sections.length > 0 && (

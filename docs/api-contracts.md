@@ -53,6 +53,52 @@ def ingest_document(
 
 **Idempotency:** Re-ingest same `(course_id, filename, doc_kind)` deletes prior chunks/embeddings/parents for that document, then re-indexes.
 
+### HTTP upload (Phase 4 Wave 4b — SP-017)
+
+**Version note:** Additive route (2026-05-30); contract remains **1.0.0**.
+
+`POST /api/v1/courses/{course_id}/documents`
+
+**Request:** `multipart/form-data`
+
+| Field | Type | Required |
+|-------|------|----------|
+| `file` | PDF file | yes |
+| `doc_kind` | string | yes — `notes` \| `textbook` \| `syllabus` \| `past_paper` |
+
+**Behavior:** Save PDF to server upload dir → call `ingest_document()` synchronously (v1 pilot). Auto-creates course if missing (same as CLI). Re-upload same `(course_id, filename, doc_kind)` replaces chunks (idempotent).
+
+**Response (201):**
+
+```json
+{
+  "document_id": "uuid",
+  "course_id": "PPL",
+  "filename": "PPL notes.pdf",
+  "doc_kind": "notes",
+  "status": "ready",
+  "page_count": 94,
+  "extraction_quality": { "nonempty_pages": 90, "outline": { "unit_count": 5 } }
+}
+```
+
+**Errors:**
+
+| Status | When |
+|--------|------|
+| 400 | Invalid `doc_kind`, non-PDF filename, unsupported content type |
+| 422 | Ingest failed (`status: failed` or pipeline exception) — `detail` string |
+
+**Future:** Async job queue if ingest routinely exceeds ~30s (not v1).
+
+**Manual verify:**
+
+```powershell
+curl.exe -X POST http://localhost:8001/api/v1/courses/PPL/documents `
+  -F "file=@C:\Projects\studypilot-v2\eval\fixtures\ppl\PPL notes.pdf" `
+  -F "doc_kind=notes"
+```
+
 ### PDF extract
 
 ```python
@@ -408,5 +454,6 @@ Agent C may develop against a **fixture DB** populated by `scripts/ingest_ppl.ps
 | `tests/test_smoke.py` | Orchestrator | CI sanity |
 | `tests/test_course_outline.py` | D | Course TOC outline API |
 | `tests/test_query_stream.py` | D | SSE query stream |
+| `tests/test_document_upload.py` | D | Multipart document upload API |
 
 All tests: run from `apps/api` with Postgres test DB (`studypilot_test` on port 5433).

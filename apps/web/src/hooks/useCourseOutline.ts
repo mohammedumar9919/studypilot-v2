@@ -11,7 +11,7 @@ interface UseCourseOutlineResult {
   reload: () => void
 }
 
-export function useCourseOutline(courseId: string): UseCourseOutlineResult {
+export function useCourseOutline(courseId: string, refreshToken = 0): UseCourseOutlineResult {
   const [data, setData] = useState<OutlineResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -56,7 +56,7 @@ export function useCourseOutline(courseId: string): UseCourseOutlineResult {
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false)
       })
-  }, [courseId])
+  }, [courseId, refreshToken])
 
   useEffect(() => {
     load()

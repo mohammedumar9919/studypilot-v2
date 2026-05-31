@@ -95,78 +95,140 @@ Archived cards: Wave 3 Agent D/E sections in git history. Contract: [api-contrac
 
 ---
 
-## Wave 3.5 — Git LFS + cloud CI gate (NEXT — Lead / ops)
+## Wave 3.5 — COMPLETE (2026-05-31)
 
-> Unblocks SP-003 full retrieval gate in GitHub Actions. No app code unless workflow needs a path tweak.
+| Deliverable | Verification |
+|-------------|--------------|
+| Git LFS for PPL PDFs | Fresh clone → real PDFs (not pointers) |
+| `retrieval-gate` in CI | Executes (skip step not run); [PR #1](https://github.com/mohammedumar9919/studypilot-v2/pull/1) |
+| `api-and-web` | pytest 56/56 PASS |
 
-**Copy into Lead chat or ops-focused Composer session:**
+Repo: `https://github.com/mohammedumar9919/studypilot-v2.git` — merge PR #1 to land on `main`.
 
 ---
 
-You are **Lead / ops** for StudyPilot v2 — **CI fixtures only**.
+## Wave 4a — COMPLETE (2026-05-31)
 
-## Skill invocation
+| Deliverable | Verification |
+|-------------|--------------|
+| Design tokens (`tokens.css`, `wave4a-theme.css`) | Warm dark-charcoal + teal system |
+| Premium motion (CSS-only) | Ambient streaks, journey strip, slide-in sources, bar-grow heatmap |
+| `StudyJourneyStrip` + stage pill | Synced to SSE stages |
+| Behavior preserved | Stream, fallback, debug, heatmap, outline |
+| Build | `npm run build` PASS |
+
+---
+
+## Wave 4b — COMPLETE (2026-05-31)
+
+| Agent | Deliverable | Verification |
+|-------|-------------|--------------|
+| D | `POST .../documents` upload API | pytest 10/10 |
+| E | Upload UI + empty states (SP-031) | `npm run build` PASS |
+
+Key files: `uploadClient.ts`, `DocumentUploadPanel.tsx`, `EmptyCourseState.tsx`, journey strip Upload/Index sync, outline+heatmap `refreshToken`.
+
+---
+
+## Wave 5 — Mobile audit (NEXT — Agent E, SP-033)
+
+> Pilot polish before cram modes / auth. Target **390px** width (iPhone 12/13/14).
+
+**Copy into new Agent E Composer chat:**
+
+---
+
+You are **Agent E** for StudyPilot v2 — **web UI only** (Wave 5, SP-033).
+
+## Skill invocation (mandatory)
 
 - Invoke **using-superpowers** first.
-- Use **verification-before-completion** — push a test branch and confirm `retrieval-gate` job runs (or document why not).
+- Invoke **ui-ux-pro-max** before layout changes.
+- Use **verification-before-completion** — `npm run build` + manual check at **390px** and **480px**.
 
 ## Read first
 
 1. `C:\Projects\studypilot-v2\docs\CURRENT_STATE.md`
-2. `C:\Projects\studypilot-v2\docs\CI_SETUP.md`
-3. `C:\Projects\studypilot-v2\.github\workflows\eval-gate.yml`
+2. `C:\Projects\studypilot-v2\docs\DESIGN_DIRECTION_WAVE4A.md`
+3. `C:\Projects\studypilot-v2\apps\web\src\wave4a-theme.css` — existing `@media (max-width: 390px)` rules
+4. `C:\Projects\studypilot-v2\apps\web\src\App.css`, `App.tsx`
+5. All main-path components: upload, query, answer, sources, journey strip, outline, heatmap
 
 ## You own ONLY
 
-- `.gitattributes` (LFS track rules for `eval/fixtures/ppl/*.pdf`)
-- `docs/CI_SETUP.md` (update steps after LFS)
-- `docs/CURRENT_STATE.md` — mark SP-003 GitHub gate **DONE** when verified
-- Optional: `.github/workflows/eval-gate.yml` if job conditions need LFS checkout
+- `C:\Projects\studypilot-v2\apps\web\**`
 
 ## FORBIDDEN
 
-- `retrieve.py`, `rerank.py`, `gate.py`, `golden_set.jsonl`
-- `apps/web/**`, `apps/api/**` (unless workflow env only)
+- `apps/api/**`
+- Breaking Wave 4a motion or Wave 4b upload/stream behavior
 
-## Deliverable
+## Audit checklist (fix what fails)
 
-1. Install / enable **Git LFS** locally.
-2. Track PPL PDFs: `eval/fixtures/ppl/*.pdf` (and any sibling fixtures the workflow expects, e.g. `PPL notes.pdf`).
-3. Migrate existing local PDFs into LFS pointers; commit pointers (not raw blobs in git history if avoidable — use fresh commit or `git lfs migrate` per team policy).
-4. Document one-time clone steps: `git lfs install` + `git lfs pull`.
-5. Verify GitHub Actions `retrieval-gate` runs full gate when PDF exists in checkout.
+Test at **390px** in Chrome DevTools — student mode (`debugEnabled: false`):
+
+| Flow | Must work |
+|------|-----------|
+| Empty state + upload panel | No horizontal scroll; readable text; tappable CTAs (≥44px touch) |
+| Indexing state | Stage pill + timer visible; CTA disabled clear |
+| Journey strip (5 steps) | Horizontal scroll OK; active step visible; no overlap with header |
+| Query form + example chips | Chips wrap; submit reachable |
+| Streaming query | Sources slide-in; answer readable; cursor visible |
+| Outline sidebar | Collapsible or stacks below main column — full tree usable |
+| Heatmap | Bars + labels readable; card not clipped |
+| Trust badges / header | Wrap cleanly; gradient title not truncated badly |
+
+Also spot-check **900px** breakpoint (`App.css`) — two-column → single column transition smooth.
+
+## Deliverables
+
+1. CSS fixes in `wave4a-theme.css` / `App.css` (prefer tokens; minimal JSX unless collapse toggle needed)
+2. If sidebar needs mobile toggle — small `useMediaQuery` or CSS-only collapse (match existing patterns)
+3. Document any remaining known limits in handoff (e.g. heatmap table on 320px)
 
 ## Acceptance
 
-1. Fresh clone + LFS pull → `eval/fixtures/ppl/PPL notes.pdf` present locally
-2. GitHub PR shows `retrieval-gate` job executing (not skipped)
-3. `docs/CI_SETUP.md` updated with LFS clone instructions
+1. `npm run build` PASS
+2. No horizontal overflow on main column @ 390px for full student journey
+3. Upload → query → stream path usable one-handed
+4. Wave 4a theme/motion preserved; `prefers-reduced-motion` still honored
 
-## Verify (user PowerShell — long gate)
+## Verify
 
 ```powershell
-cd C:\Projects\studypilot-v2
-git lfs pull
-.\scripts\quick_gate.ps1
+cd C:\Projects\studypilot-v2\apps\web
+npm run build
+npm run dev
+# DevTools → 390 × 844, student mode
 ```
+
+## Return to Lead chat
+
+- Checklist pass/fail table
+- Files changed
+- Screenshots description @ 390px
 
 **Do NOT** edit `.cursor/plans/*.plan.md`
 
 ---
 
-## Wave 4a — Visual design pass (after 3.5 — Option A)
+## Optional next waves (after Wave 5)
 
-> **Sequence locked:** 3.5 Git LFS → **4a styling (SP-035)** → 4b upload/onboarding.  
-> **Step 1 (you + Lead):** 30–60 min — pick references, type scale, primary color, density. No code yet.  
-> **Step 2:** Lead writes full Agent E card below. **Step 3:** Agent E implements CSS tokens + component pass.
+| ID | Item | Notes |
+|----|------|-------|
+| SP-033 | Mobile audit @ 390px | Wave 5 — **active** (see above) |
+| SP-032 | Cram presets | Summary / flashcards — card TBD |
+| SP-020 | docker-compose full profile | Ops |
+| SP-012 | Auth + workspace | Defer pilot |
 
-**Agent E card:** TBD after styling session. Will include ui-ux-pro-max, `apps/web/**` only, tie-in SP-033 mobile audit.
-
-**Do not start 4a until Wave 3.5 acceptance** (GitHub `retrieval-gate` runs or documented blocker).
+**Agents B/C/D/E:** idle unless regression or new feature wave.
 
 ---
 
-## Wave 4b — Upload + onboarding (after 4a)
+## Wave 4b — archived
 
-- Agent D: `POST /api/v1/courses/{id}/documents` (SP-017) — card TBD
-- Agent E: upload UI + empty states (SP-031) — inherits 4a design tokens
+Agent D + E cards in git history. Contract: [api-contracts.md](api-contracts.md).
+
+## Wave 4a — archived
+
+Design brief: [DESIGN_DIRECTION_WAVE4A.md](DESIGN_DIRECTION_WAVE4A.md). Agent E card in git history.

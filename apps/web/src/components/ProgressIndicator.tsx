@@ -14,25 +14,29 @@ function formatElapsed(ms: number): string {
     : `${seconds}s`
 }
 
-function stageLabel(stage: QueryStage): string | null {
+function stageParts(stage: QueryStage): { prefix: string; accent: string; suffix: string } | null {
   switch (stage) {
     case 'retrieving':
-      return 'Finding sources…'
+      return { prefix: 'Finding ', accent: 'sources', suffix: '…' }
     case 'generating':
-      return 'Writing answer…'
+      return { prefix: 'Writing ', accent: 'answer', suffix: '…' }
     default:
       return null
   }
 }
 
 export function ProgressIndicator({ stage, elapsedMs }: ProgressIndicatorProps) {
-  const label = stageLabel(stage)
-  if (!label) return null
+  const parts = stageParts(stage)
+  if (!parts) return null
 
   return (
-    <div className="progress-indicator" aria-live="polite">
-      <span className="spinner" aria-hidden="true" />
-      <span className="progress-label">{label}</span>
+    <div className="stage-pill progress-indicator" aria-live="polite">
+      <span className="stage-pill-dot" aria-hidden="true" />
+      <span className="stage-pill-label">
+        {parts.prefix}
+        <span className="gradient-accent">{parts.accent}</span>
+        {parts.suffix}
+      </span>
       <span className="progress-elapsed">{formatElapsed(elapsedMs)}</span>
     </div>
   )

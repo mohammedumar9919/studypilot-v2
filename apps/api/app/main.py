@@ -1,10 +1,11 @@
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from starlette.responses import StreamingResponse
 
 from app.database import get_session
 from app.services.course_outline import get_course_outline
+from app.services.document_upload import IngestFailedError, UploadValidationError, upload_and_ingest_document
 from app.services.exam.topic_frequency import compute_topic_frequency
 from app.services.rag.generate import OpenRouterGenerationError, chunks_to_sources, stream_study_answer
 from app.services.rag.pipeline import _build_retrieval_debug, format_sse_event, run_study_query, run_study_question
@@ -156,6 +157,46 @@ def query_stream(body: QueryRequest, session: Session = Depends(get_session)) ->
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+class DocumentUploadResponse(BaseModel):
+    document_id: str
+    course_id: str
+    filename: str
+    doc_kind: str
+    status: str
+    page_count: int | None = None
+    extraction_quality: dict | None = None
+
+
+@app.post(
+    "/api/v1/courses/{course_id}/documents",
+    status_code=201,
+    response_model=DocumentUploadResponse,
+)
+async def upload_document(
+    course_id: str,
+    file: UploadFile = File(...),
+    doc_kind: str = Form(...),
+    session: Session = Depends(get_session),
+) -> DocumentUploadResponse:
+    """Multipart PDF upload → synchronous ingest (v1 pilot)."""
+    try:
+        data = await file.read()
+        result = upload_and_ingest_document(
+            session,
+            course_id=course_id,
+            filename=file.filename or "upload.pdf",
+            content_type=file.content_type,
+            data=data,
+            doc_kind=doc_kind,
+        )
+    except UploadValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except IngestFailedError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    return DocumentUploadResponse(**result)
 
 
 @app.get("/api/v1/courses/{course_id}/exam/topic-frequency")

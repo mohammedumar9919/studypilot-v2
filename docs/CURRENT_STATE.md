@@ -19,8 +19,11 @@ This is the **single source of truth** for execution status. A new Cursor chat s
 | Retrieval accuracy | **100%** precision@5 (40/40), OOC **10/10** |
 | Course TOC browse (pre-query) | **DONE** (Agent D API + Agent E sidebar) |
 | Query streaming UX (SSE) | **DONE** (Agent D API + Agent E UI, Wave 3) |
+| Visual design / motion (SP-035) | **DONE** (Agent E Wave 4a — tokens + NTR-inspired motion) |
+| In-app PDF upload (SP-017) | **DONE** (Agent D API + Agent E UI, Wave 4b) |
+| Onboarding / empty states (SP-031) | **DONE** (Agent E Wave 4b) |
 
-**Immediate goal:** Wave 4a visual design pass (SP-035). SP-003 GitHub retrieval gate **DONE** (Git LFS + job executes). See [WORKER_TASK_CARDS_QUEUE.md](WORKER_TASK_CARDS_QUEUE.md).
+**Immediate goal:** Wave **5** — SP-033 mobile audit @ 390px (Agent E). **Ops:** commit + merge Wave 3–4 work to `main` (see below).
 
 ---
 
@@ -69,7 +72,19 @@ Reports: `eval/reports/PHASE1B_SUMMARY_FOR_AGENT.txt`, `eval/reports/latest.json
 | Local Phase 3 gate (`quick_gate.ps1`) | **DONE** — 100% (40/40), OOC 10/10 (user verified) |
 | `POST /api/v1/query/stream` (SSE) | **DONE** (Agent D, pytest 6/6 stream + query API 13/13) |
 | Streaming UI + non-stream fallback | **DONE** (Agent E, `npm run build` PASS) |
-| Full retrieval gate in GitHub CI | **DONE** — PPL PDFs via Git LFS; `retrieval-gate` runs ingest + eval (not skipped) |
+| Full retrieval gate in GitHub CI | **DONE** — Git LFS (`eval/fixtures/ppl/*.pdf`); `retrieval-gate` runs (not skipped). Repo: `github.com/mohammedumar9919/studypilot-v2` |
+
+---
+
+## Phase 3 Wave 3.5 — Git LFS + cloud CI (SP-003)
+
+| Deliverable | Status |
+|-------------|--------|
+| `.gitattributes` LFS track `eval/fixtures/ppl/*.pdf` | **DONE** |
+| `eval-gate.yml` — `lfs: true`, postgres wait, BOM strip | **DONE** |
+| Fresh clone + `git lfs pull` → real PDFs | **DONE** (verified) |
+| `api-and-web` on PR #1 | **PASS** (pytest 56/56) |
+| `retrieval-gate` executes ingest + eval | **DONE** (not skipped; confirm green after PR merge) |
 
 **Stream contract:** `retrieval_complete` → `token` → `done` (refusal: `done` only). Documented in [api-contracts.md](api-contracts.md).
 
@@ -86,14 +101,44 @@ Reports: `eval/reports/PHASE1B_SUMMARY_FOR_AGENT.txt`, `eval/reports/latest.json
 
 ---
 
-## What's NEXT (locked sequence — Option A)
+---
 
-| # | Wave | Owner | Task |
-|---|------|-------|------|
-| 1 | **4a** | Lead + you → Agent E | Visual design pass (SP-035) — **before upload** |
-| 2 | **4b** | Agent D + E | Upload API (SP-017), onboarding (SP-031); auth (SP-012) later |
+## Phase 4 Wave 4a — Visual design (SP-035)
 
-**Styling:** Short Lead session to lock aesthetic → Agent E implements tokens in `apps/web`. See [WORKER_TASK_CARDS_QUEUE.md](WORKER_TASK_CARDS_QUEUE.md) Wave 4a placeholder.
+| Deliverable | Status |
+|-------------|--------|
+| `tokens.css` + `wave4a-theme.css` design system | **DONE** |
+| Warm dark-charcoal + teal accent, ambient streaks | **DONE** |
+| `StudyJourneyStrip` (5 steps synced to SSE) | **DONE** |
+| Glass panels, stage pill, sources slide-in, bar-grow heatmap | **DONE** |
+| CSS-only motion + `prefers-reduced-motion` | **DONE** (no framer-motion) |
+| `npm run build` | **PASS** |
+
+Brief: [DESIGN_DIRECTION_WAVE4A.md](DESIGN_DIRECTION_WAVE4A.md)
+
+---
+
+## Phase 4 Wave 4b — Upload + onboarding (SP-017, SP-031)
+
+| Deliverable | Status |
+|-------------|--------|
+| `POST /api/v1/courses/{course_id}/documents` | **DONE** (Agent D, pytest 10/10) |
+| `document_upload.py` — sync multipart ingest | **DONE** |
+| `uploadClient.ts` + `DocumentUploadPanel.tsx` | **DONE** |
+| `EmptyCourseState.tsx` — SP-031 onboarding | **DONE** |
+| Journey strip Upload/Index steps + outline/heatmap refresh | **DONE** |
+| `npm run build` | **PASS** |
+
+---
+
+## What's NEXT
+
+| # | Priority | Item | Owner |
+|---|----------|------|-------|
+| 1 | **NOW** | SP-033 mobile audit @ 390px | **Agent E** (Wave 5) |
+| 2 | Ops | Commit Wave 3–4 + merge PR #1 → `main` | **You** |
+| 3 | Later | SP-032 cram presets | D + E |
+| 4 | Defer | SP-012 auth, SP-013 async ingest, SP-014 observability | Phase 5 |
 
 ---
 

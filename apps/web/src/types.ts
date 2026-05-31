@@ -138,3 +138,23 @@ export interface OutlineResponse {
   front_matter: OutlinePageRange
   units: OutlineUnit[]
 }
+
+export type DocumentKind = 'notes' | 'textbook' | 'syllabus' | 'past_paper'
+
+export interface DocumentUploadExtractionQuality {
+  nonempty_pages?: number
+  total_pages?: number
+  outline?: { unit_count?: number }
+}
+
+export interface DocumentUploadResponse {
+  document_id: string
+  course_id: string
+  filename: string
+  doc_kind: DocumentKind
+  status: 'ready' | 'failed' | 'pending' | 'processing'
+  page_count: number
+  extraction_quality: DocumentUploadExtractionQuality | null
+}
+
+export type UploadPanelPhase = 'idle' | 'indexing' | 'success' | 'error'

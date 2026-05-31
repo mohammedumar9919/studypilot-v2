@@ -90,7 +90,12 @@ export function QueryForm({
             Working…
           </>
         ) : (
-          'Ask'
+          <>
+            Ask
+            <span className="submit-arrow" aria-hidden="true">
+              →
+            </span>
+          </>
         )}
       </button>
     </form>

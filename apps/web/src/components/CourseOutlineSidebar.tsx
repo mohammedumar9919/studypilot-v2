@@ -1,11 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { useCourseOutline } from '../hooks/useCourseOutline'
 import type { OutlineSection, OutlineUnit } from '../types'
 
 interface CourseOutlineSidebarProps {
   courseId: string
+  refreshToken?: number
   onSectionSelect: (sectionTitle: string) => void
+  onOutlineState?: (state: { loaded: boolean; notFound: boolean; hasData: boolean }) => void
 }
 
 function formatPageRange(pageStart: number, pageEnd: number): string {
@@ -14,9 +16,23 @@ function formatPageRange(pageStart: number, pageEnd: number): string {
   return start === end ? `p.${start}` : `pp.${start}–${end}`
 }
 
-export function CourseOutlineSidebar({ courseId, onSectionSelect }: CourseOutlineSidebarProps) {
-  const { data, loading, error, notFound, reload } = useCourseOutline(courseId)
+export function CourseOutlineSidebar({
+  courseId,
+  refreshToken = 0,
+  onSectionSelect,
+  onOutlineState,
+}: CourseOutlineSidebarProps) {
+  const { data, loading, error, notFound, reload } = useCourseOutline(courseId, refreshToken)
   const [mobileOpen, setMobileOpen] = useState(false)
+
+  useEffect(() => {
+    if (loading) return
+    onOutlineState?.({
+      loaded: true,
+      notFound,
+      hasData: Boolean(data),
+    })
+  }, [data, loading, notFound, onOutlineState])
 
   const handleSelect = (title: string) => {
     onSectionSelect(title)

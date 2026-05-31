@@ -11,7 +11,7 @@ interface UseTopicFrequencyResult {
   reload: () => void
 }
 
-export function useTopicFrequency(courseId: string): UseTopicFrequencyResult {
+export function useTopicFrequency(courseId: string, refreshToken = 0): UseTopicFrequencyResult {
   const [data, setData] = useState<TopicFrequencyResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -56,7 +56,7 @@ export function useTopicFrequency(courseId: string): UseTopicFrequencyResult {
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false)
       })
-  }, [courseId])
+  }, [courseId, refreshToken])
 
   useEffect(() => {
     load()
