@@ -51,6 +51,11 @@
   /* Typography */
   --sp-font-body: 'Segoe UI', system-ui, -apple-system, sans-serif;
   --sp-font-display: 'Plus Jakarta Sans', var(--sp-font-body);
+
+  /* Layout — SP-033 */
+  --sp-layout-split: 900px;
+  --sp-touch-min: 44px;
+  --sp-page-gutter: clamp(0.85rem, 3vw, 1.25rem);
 }
 
 @media (prefers-reduced-motion: reduce) {

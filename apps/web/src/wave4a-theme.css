@@ -3,6 +3,8 @@
 .app-shell {
   position: relative;
   min-height: 100vh;
+  overflow-x: clip;
+  max-width: 100%;
 }
 
 .app {
@@ -10,7 +12,8 @@
   z-index: 1;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 1.5rem 1.25rem 2rem;
+  padding: 1.5rem var(--sp-page-gutter) 2rem;
+  min-width: 0;
 }
 
 .reveal-on-load {
@@ -111,7 +114,9 @@
 .study-journey {
   margin-bottom: 1.25rem;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
 }
 
 .study-journey-list {
@@ -120,7 +125,9 @@
   margin: 0;
   display: flex;
   gap: 0.35rem;
-  min-width: min-content;
+  min-width: 0;
+  width: max-content;
+  max-width: 100%;
 }
 
 .study-journey-step {
@@ -808,14 +815,79 @@
   color: var(--sp-teal);
 }
 
-/* Mobile SP-033 */
+/* Mobile SP-033 — responsive audit (390px / 480px) */
+
+/* Touch targets — main-path CTAs */
+.submit-btn,
+.upload-submit-btn,
+.upload-picker-btn,
+.example-chip,
+.outline-mobile-toggle,
+.outline-section-btn,
+.outline-front-matter,
+.text-btn {
+  min-height: var(--sp-touch-min);
+}
+
+.checkbox-field {
+  min-height: var(--sp-touch-min);
+  align-items: center;
+}
+
+.checkbox-field input[type='checkbox'] {
+  width: 1.125rem;
+  height: 1.125rem;
+  flex-shrink: 0;
+}
+
+.stage-pill.progress-indicator,
+.stage-pill.upload-stage-pill {
+  flex-wrap: wrap;
+  row-gap: 0.35rem;
+}
+
+.topic-frequency-header,
+.course-outline-header,
+.document-upload-header {
+  flex-wrap: wrap;
+}
+
+.panel,
+.answer-panel,
+.source-item,
+.upload-dropzone {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.source-filename,
+.topic-unit-label,
+.outline-section-label {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .column-secondary {
+    animation: reveal-up var(--sp-duration-slow) var(--sp-ease-out) both;
+  }
+
+  .app-header {
+    gap: 0.85rem;
+  }
+}
+
 @media (max-width: 480px) {
   .app {
-    padding: 1rem 0.85rem 1.5rem;
+    padding: 1rem var(--sp-page-gutter) 1.5rem;
   }
 
   .app-header {
     flex-direction: column;
+    align-items: stretch;
+  }
+
+  .app-header-main {
+    min-width: 0;
   }
 
   .trust-badges {
@@ -824,46 +896,103 @@
 
   .trust-badges li {
     flex: 1 1 100%;
+    min-height: var(--sp-touch-min);
+    display: flex;
+    align-items: center;
+  }
+
+  /* Journey: fit 5 steps in viewport — scroll contained in strip only */
+  .study-journey {
+    width: 100%;
+    margin-left: 0;
+    margin-right: 0;
   }
 
   .study-journey-list {
-    padding-bottom: 0.25rem;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    width: 100%;
+    max-width: 100%;
+    gap: 0.25rem;
   }
 
   .study-journey-step {
-    font-size: 0.7rem;
-    padding: 0.35rem 0.5rem;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 0.15rem;
+    padding: 0.4rem 0.2rem;
+    min-height: var(--sp-touch-min);
+    font-size: 0.68rem;
+  }
+
+  .study-journey-label {
+    line-height: 1.15;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+  }
+
+  .study-journey-number {
+    font-size: 0.65rem;
   }
 
   .study-journey-arrow {
     display: none;
   }
 
+  .example-questions-label {
+    display: block;
+    margin-bottom: 0.45rem;
+  }
+
+  .example-question-chips {
+    flex-direction: column;
+  }
+
   .example-chip {
     width: 100%;
     border-radius: var(--sp-radius-sm);
+    min-height: var(--sp-touch-min);
+    padding: 0.55rem 0.75rem;
   }
 
-  .submit-btn {
+  .submit-btn,
+  .upload-submit-btn {
     width: 100%;
     justify-content: center;
+    min-height: var(--sp-touch-min);
   }
 
   .upload-dropzone {
     padding: 1rem 0.75rem;
   }
 
-  .upload-submit-btn {
-    font-size: 0.9rem;
+  .upload-picker-btn {
+    min-width: 8rem;
   }
 
   .empty-course-steps {
     font-size: 0.8rem;
   }
 
+  .sources-reveal,
+  .answer-block,
+  .sources-list,
+  .answer-text {
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
   .source-card-meta {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .source-page-badge {
+    align-self: flex-start;
   }
 
   .topic-unit-summary,
@@ -873,20 +1002,78 @@
     gap: 0.25rem;
   }
 
+  .topic-frequency-total {
+    flex-wrap: wrap;
+  }
+
+  .topic-bar-track {
+    width: 100%;
+  }
+
+  .stage-pill-label {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .progress-elapsed {
+    margin-left: 0;
+  }
+
   .debug-dl > div,
   .hint-dl > div,
   .comparison-dl > div,
   .chunk-dl > div {
     grid-template-columns: 1fr;
   }
+
+  .toc-chunk-title {
+    grid-template-columns: 3rem 1fr;
+  }
+
+  .toc-chunk-score {
+    grid-column: 1 / -1;
+    justify-self: start;
+    margin-top: 0.15rem;
+  }
 }
 
 @media (max-width: 390px) {
   .app-header h1 {
-    font-size: 1.55rem;
+    font-size: 1.5rem;
+    line-height: 1.15;
+  }
+
+  .subtitle {
+    font-size: 0.88rem;
   }
 
   .panel {
-    padding: 0.95rem 1rem;
+    padding: 0.9rem 0.85rem;
+  }
+
+  .study-journey-step {
+    padding: 0.35rem 0.15rem;
+  }
+
+  .study-journey-label {
+    font-size: 0.62rem;
+  }
+
+  .topic-frequency-total-value {
+    font-size: 1.15rem;
+  }
+
+  .upload-dropzone-title {
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 320px) {
+  .study-journey-label {
+    font-size: 0.58rem;
+  }
+
+  .trust-badges li {
+    font-size: 0.72rem;
   }
 }

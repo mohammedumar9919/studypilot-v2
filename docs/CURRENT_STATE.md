@@ -22,8 +22,9 @@ This is the **single source of truth** for execution status. A new Cursor chat s
 | Visual design / motion (SP-035) | **DONE** (Agent E Wave 4a — tokens + NTR-inspired motion) |
 | In-app PDF upload (SP-017) | **DONE** (Agent D API + Agent E UI, Wave 4b) |
 | Onboarding / empty states (SP-031) | **DONE** (Agent E Wave 4b) |
+| Mobile responsive audit (SP-033) | **DONE** (Agent E Wave 5 — 390px PASS) |
 
-**Immediate goal:** Wave **5** — SP-033 mobile audit @ 390px (Agent E). **Ops:** commit + merge Wave 3–4 work to `main` (see below).
+**Status:** **Pilot-ready** (Waves 0–5). **NEXT (optional):** SP-032 cram presets or campus pilot prep. Repo: `github.com/mohammedumar9919/studypilot-v2`.
 
 ---
 
@@ -131,14 +132,30 @@ Brief: [DESIGN_DIRECTION_WAVE4A.md](DESIGN_DIRECTION_WAVE4A.md)
 
 ---
 
+---
+
+## Phase 5 — Mobile audit (SP-033)
+
+| Deliverable | Status |
+|-------------|--------|
+| Full student journey @ **390px** | **PASS** (all flows) |
+| Touch targets ≥44px, no main-column horizontal scroll | **DONE** |
+| 900px column transition | **PASS** |
+| Tokens: `--sp-touch-min`, `--sp-page-gutter`, `--sp-layout-split` | **DONE** |
+| `npm run build` | **PASS** |
+
+**Known limits:** 320px journey labels tight; debug panels dense (hidden in student mode).
+
+---
+
 ## What's NEXT
 
 | # | Priority | Item | Owner |
 |---|----------|------|-------|
-| 1 | **NOW** | SP-033 mobile audit @ 390px | **Agent E** (Wave 5) |
-| 2 | Ops | Commit Wave 3–4 + merge PR #1 → `main` | **You** |
-| 3 | Later | SP-032 cram presets | D + E |
-| 4 | Defer | SP-012 auth, SP-013 async ingest, SP-014 observability | Phase 5 |
+| 1 | Optional | SP-032 cram presets (summary, flashcards) | Agent D + E |
+| 2 | Optional | SP-015 exam preset / review modes | D + E |
+| 3 | Pilot | Campus demo — upload → ask → cite → heatmap | You |
+| 4 | Defer | SP-012 auth, SP-013 async ingest, SP-014 observability | Phase 5+ |
 
 ---
 

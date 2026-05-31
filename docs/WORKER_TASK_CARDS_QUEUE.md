@@ -130,100 +130,37 @@ Key files: `uploadClient.ts`, `DocumentUploadPanel.tsx`, `EmptyCourseState.tsx`,
 
 ---
 
-## Wave 5 — Mobile audit (NEXT — Agent E, SP-033)
+## Wave 5 — COMPLETE (2026-05-31)
 
-> Pilot polish before cram modes / auth. Target **390px** width (iPhone 12/13/14).
+| Deliverable | Verification |
+|-------------|--------------|
+| SP-033 mobile audit @ 390px | All student flows PASS |
+| Touch/gutter/layout tokens | `tokens.css` |
+| Overflow guards + 5-col journey grid | `App.css`, `wave4a-theme.css` |
+| Build | `npm run build` PASS |
 
-**Copy into new Agent E Composer chat:**
-
----
-
-You are **Agent E** for StudyPilot v2 — **web UI only** (Wave 5, SP-033).
-
-## Skill invocation (mandatory)
-
-- Invoke **using-superpowers** first.
-- Invoke **ui-ux-pro-max** before layout changes.
-- Use **verification-before-completion** — `npm run build` + manual check at **390px** and **480px**.
-
-## Read first
-
-1. `C:\Projects\studypilot-v2\docs\CURRENT_STATE.md`
-2. `C:\Projects\studypilot-v2\docs\DESIGN_DIRECTION_WAVE4A.md`
-3. `C:\Projects\studypilot-v2\apps\web\src\wave4a-theme.css` — existing `@media (max-width: 390px)` rules
-4. `C:\Projects\studypilot-v2\apps\web\src\App.css`, `App.tsx`
-5. All main-path components: upload, query, answer, sources, journey strip, outline, heatmap
-
-## You own ONLY
-
-- `C:\Projects\studypilot-v2\apps\web\**`
-
-## FORBIDDEN
-
-- `apps/api/**`
-- Breaking Wave 4a motion or Wave 4b upload/stream behavior
-
-## Audit checklist (fix what fails)
-
-Test at **390px** in Chrome DevTools — student mode (`debugEnabled: false`):
-
-| Flow | Must work |
-|------|-----------|
-| Empty state + upload panel | No horizontal scroll; readable text; tappable CTAs (≥44px touch) |
-| Indexing state | Stage pill + timer visible; CTA disabled clear |
-| Journey strip (5 steps) | Horizontal scroll OK; active step visible; no overlap with header |
-| Query form + example chips | Chips wrap; submit reachable |
-| Streaming query | Sources slide-in; answer readable; cursor visible |
-| Outline sidebar | Collapsible or stacks below main column — full tree usable |
-| Heatmap | Bars + labels readable; card not clipped |
-| Trust badges / header | Wrap cleanly; gradient title not truncated badly |
-
-Also spot-check **900px** breakpoint (`App.css`) — two-column → single column transition smooth.
-
-## Deliverables
-
-1. CSS fixes in `wave4a-theme.css` / `App.css` (prefer tokens; minimal JSX unless collapse toggle needed)
-2. If sidebar needs mobile toggle — small `useMediaQuery` or CSS-only collapse (match existing patterns)
-3. Document any remaining known limits in handoff (e.g. heatmap table on 320px)
-
-## Acceptance
-
-1. `npm run build` PASS
-2. No horizontal overflow on main column @ 390px for full student journey
-3. Upload → query → stream path usable one-handed
-4. Wave 4a theme/motion preserved; `prefers-reduced-motion` still honored
-
-## Verify
-
-```powershell
-cd C:\Projects\studypilot-v2\apps\web
-npm run build
-npm run dev
-# DevTools → 390 × 844, student mode
-```
-
-## Return to Lead chat
-
-- Checklist pass/fail table
-- Files changed
-- Screenshots description @ 390px
-
-**Do NOT** edit `.cursor/plans/*.plan.md`
+Known limits: 320px labels tight; debug panels dense (student mode hides).
 
 ---
 
-## Optional next waves (after Wave 5)
+## Pilot-ready — no active worker cards
 
-| ID | Item | Notes |
-|----|------|-------|
-| SP-033 | Mobile audit @ 390px | Wave 5 — **active** (see above) |
-| SP-032 | Cram presets | Summary / flashcards — card TBD |
-| SP-020 | docker-compose full profile | Ops |
+**Shipped (Waves 0–5):** retrieval @ 100%, CI+LFS, SSE streaming, premium UI, upload+onboarding, mobile @ 390px.
+
+| ID | Item | When |
+|----|------|------|
+| SP-032 | Cram presets (summary, flashcards) | Optional Wave 6 |
+| SP-015 | Exam preset / review mode | Optional |
 | SP-012 | Auth + workspace | Defer pilot |
+| SP-020 | docker-compose full profile | Ops |
 
-**Agents B/C/D/E:** idle unless regression or new feature wave.
+**Agents B/C/D/E:** idle unless regression or new wave.
 
 ---
+
+## Wave 5 — archived
+
+Mobile audit card in git history.
 
 ## Wave 4b — archived
 

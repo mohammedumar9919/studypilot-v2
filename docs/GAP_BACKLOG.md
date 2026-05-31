@@ -52,8 +52,8 @@
 |----|------|--------|------|
 | SP-030 | Student mode (hide debug) | **DONE** | 1 |
 | SP-031 | Onboarding / empty states | **DONE** | Wave 4b — `EmptyCourseState`, upload journey |
-| SP-032 | Cram presets (summary, flashcards) | **OPEN** | **4b** |
-| SP-033 | Mobile responsive audit | **IN PROGRESS** | Wave 5 — full pass @ 390px (Agent E) |
+| SP-032 | Cram presets (summary, flashcards) | **OPEN** | **NEXT optional** |
+| SP-033 | Mobile responsive audit | **DONE** | Wave 5 — 390px full pass; 320px tight labels noted |
 | SP-034 | Trust / branding surface | **DONE** | 1 |
 | SP-035 | Visual design / polish pass | **DONE** | Wave 4a — `tokens.css`, warm+teal, NTR-inspired motion, CSS-only |
 
@@ -93,7 +93,7 @@ See [failures-checklist.md](failures-checklist.md): no vector-only, no past_pape
 | **3.5** | Git LFS + cloud CI retrieval gate — **DONE** (2026-05-31) |
 | **4a** | Visual design pass (SP-035) — **DONE** (2026-05-31) |
 | **4b** | Upload + onboarding (SP-017, SP-031) — **DONE** (2026-05-31) |
-| **5** | Mobile audit (SP-033) — **NEXT** |
-| **5+** | Cram presets (SP-032), auth (SP-012), campus pilot | Optional / defer |
+| **5** | Mobile audit (SP-033) — **DONE** (2026-05-31) |
+| **6+** | Cram presets (SP-032), exam preset (SP-015), campus pilot | **OPTIONAL** |
 
 See [CURRENT_STATE.md](CURRENT_STATE.md) and [COUNCIL_ORCHESTRATION.md](COUNCIL_ORCHESTRATION.md).

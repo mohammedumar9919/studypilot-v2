@@ -23,6 +23,11 @@ body {
   min-height: 100vh;
   background: var(--sp-bg-deep);
   color: var(--sp-text);
+  overflow-x: clip;
+}
+
+html {
+  overflow-x: clip;
 }
 
 #root {
