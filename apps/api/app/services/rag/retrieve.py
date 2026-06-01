@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import re
 import uuid
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -19,6 +21,24 @@ from app.services.embedder import embed_texts
 from app.services.pdf_extract import DocumentOutline, load_outline
 
 STUDY_DOC_KINDS = ("notes", "textbook", "syllabus")
+EXAM_DOC_KINDS = ("past_paper",)
+
+_current_course_id: ContextVar[str | None] = ContextVar("retrieval_course_id", default=None)
+_dynamic_hints_cache: dict[str, tuple[dict[str, tuple[str, ...]], dict[str, frozenset[str]], tuple[tuple[str, int, int], ...]]] = {}
+
+
+@contextmanager
+def retrieval_course_context(course_id: str):
+    """Scope dynamic outline hints to a single study query."""
+    token = _current_course_id.set(course_id)
+    try:
+        yield
+    finally:
+        _current_course_id.reset(token)
+
+
+def _active_course_id() -> str | None:
+    return _current_course_id.get()
 
 _STOPWORDS = frozenset(
     {
@@ -228,8 +248,65 @@ def _ppl_outline() -> DocumentOutline | None:
     return load_outline(_PPL_OUTLINE_PATH)
 
 
-def unit_page_range(unit_id: str) -> tuple[int, int] | None:
-    """0-based inclusive page range for a PPL unit from the outline fixture."""
+def _load_course_hints(
+    course_id: str,
+) -> tuple[dict[str, tuple[str, ...]], dict[str, frozenset[str]], tuple[tuple[str, int, int], ...]]:
+    if course_id.upper() == "PPL":
+        return _UNIT_PHRASES, _UNIT_TERMS, _SECTION_PAGE_HINTS
+    cached = _dynamic_hints_cache.get(course_id)
+    if cached is not None:
+        return cached
+    from app.services.course_outline import resolve_course_outline
+    from app.services.outline_hints import (
+        build_section_page_hints_from_outline,
+        build_unit_phrases_from_outline,
+        build_unit_terms_from_outline,
+    )
+
+    with SessionLocal() as session:
+        outline, source = resolve_course_outline(session, course_id)
+    if outline is None or source == "auto_stub":
+        result: tuple[dict[str, tuple[str, ...]], dict[str, frozenset[str]], tuple[tuple[str, int, int], ...]] = (
+            {},
+            {},
+            (),
+        )
+    else:
+        result = (
+            build_unit_phrases_from_outline(outline),
+            build_unit_terms_from_outline(outline),
+            build_section_page_hints_from_outline(outline),
+        )
+    _dynamic_hints_cache[course_id] = result
+    return result
+
+
+def _hints_for_course(course_id: str | None = None) -> tuple[
+    dict[str, tuple[str, ...]],
+    dict[str, frozenset[str]],
+    tuple[tuple[str, int, int], ...],
+]:
+    cid = course_id or _active_course_id()
+    if not cid:
+        return _UNIT_PHRASES, _UNIT_TERMS, _SECTION_PAGE_HINTS
+    if cid.upper() == "PPL":
+        return _UNIT_PHRASES, _UNIT_TERMS, _SECTION_PAGE_HINTS
+    return _load_course_hints(cid)
+
+
+def unit_page_range(unit_id: str, course_id: str | None = None) -> tuple[int, int] | None:
+    """0-based inclusive page range for a unit from course outline."""
+    cid = course_id or _active_course_id()
+    if cid and cid.upper() != "PPL":
+        from app.services.course_outline import resolve_course_outline
+
+        with SessionLocal() as session:
+            outline, _source = resolve_course_outline(session, cid)
+        if outline is not None:
+            for unit in outline.units:
+                if unit.id == unit_id:
+                    return unit.page_start, unit.page_end
+        return None
     outline = _ppl_outline()
     if outline is None:
         return None
@@ -272,12 +349,13 @@ _SECTION_PAGE_HINTS: tuple[tuple[str, int, int], ...] = (
 )
 
 
-def section_page_hints(question: str) -> list[tuple[int, int]]:
-    """Narrow section page ranges from query phrases (outline fixture)."""
+def section_page_hints(question: str, course_id: str | None = None) -> list[tuple[int, int]]:
+    """Narrow section page ranges from query phrases (outline fixture or course outline)."""
     q = question.lower()
+    _, _, hint_rows = _hints_for_course(course_id)
     ranges: list[tuple[int, int]] = []
     seen: set[tuple[int, int]] = set()
-    for phrase, start, end in _SECTION_PAGE_HINTS:
+    for phrase, start, end in hint_rows:
         if phrase in q:
             key = (start, end)
             if key not in seen:
@@ -286,32 +364,34 @@ def section_page_hints(question: str) -> list[tuple[int, int]]:
     return ranges
 
 
-def infer_unit_hints(question: str) -> list[str]:
+def infer_unit_hints(question: str, course_id: str | None = None) -> list[str]:
     """Soft unit hints from query phrases/terms — never hard-filters retrieval."""
     q = question.lower()
     terms = set(focus_terms(question))
     scores: dict[str, float] = {}
-    for unit_id, phrases in _UNIT_PHRASES.items():
+    phrases_map, terms_map, _ = _hints_for_course(course_id)
+    for unit_id, phrases in phrases_map.items():
         for phrase in phrases:
             if phrase in q:
                 scores[unit_id] = scores.get(unit_id, 0.0) + 3.0
-    for unit_id, vocab in _UNIT_TERMS.items():
+    for unit_id, vocab in terms_map.items():
         overlap = len(terms & vocab)
         if overlap:
             scores[unit_id] = scores.get(unit_id, 0.0) + float(overlap)
-    if "object-oriented" in q or "object oriented" in q:
-        scores["4"] = scores.get("4", 0.0) + 2.0
-        scores["1"] = scores.get("1", 0.0) + 0.5
-    if "functional programming" in q or "write notes on functional" in q:
-        scores["5"] = scores.get("5", 0.0) + 3.0
-    if "programming paradigms" in q or "language categories" in q:
-        scores["1"] = scores.get("1", 0.0) + 1.0
-    if "backtracking" in q or "prolog" in q:
-        scores["4"] = scores.get("4", 0.0) + 2.0
-    if "evaluation criteria" in q or "language evaluation criteria" in q:
-        scores["1"] = scores.get("1", 0.0) + 2.0
-    if "compilation versus" in q or "compilation and interpretation" in q:
-        scores["1"] = scores.get("1", 0.0) + 2.0
+    if (course_id or _active_course_id() or "PPL").upper() == "PPL":
+        if "object-oriented" in q or "object oriented" in q:
+            scores["4"] = scores.get("4", 0.0) + 2.0
+            scores["1"] = scores.get("1", 0.0) + 0.5
+        if "functional programming" in q or "write notes on functional" in q:
+            scores["5"] = scores.get("5", 0.0) + 3.0
+        if "programming paradigms" in q or "language categories" in q:
+            scores["1"] = scores.get("1", 0.0) + 1.0
+        if "backtracking" in q or "prolog" in q:
+            scores["4"] = scores.get("4", 0.0) + 2.0
+        if "evaluation criteria" in q or "language evaluation criteria" in q:
+            scores["1"] = scores.get("1", 0.0) + 2.0
+        if "compilation versus" in q or "compilation and interpretation" in q:
+            scores["1"] = scores.get("1", 0.0) + 2.0
     ranked = sorted(scores.items(), key=lambda item: item[1], reverse=True)
     return [unit_id for unit_id, score in ranked if score >= 2.0]
 
@@ -329,9 +409,17 @@ def _parse_chunk_metadata(raw: Any) -> tuple[str | None, str | None, str | None]
     )
 
 
-def _study_doc_filter_sql() -> str:
-    kinds = ", ".join(f"'{k}'" for k in STUDY_DOC_KINDS)
+def _doc_filter_sql(doc_kinds: tuple[str, ...]) -> str:
+    kinds = ", ".join(f"'{k}'" for k in doc_kinds)
     return f"d.doc_kind IN ({kinds}) AND d.status = 'ready'"
+
+
+def _study_doc_filter_sql() -> str:
+    return _doc_filter_sql(STUDY_DOC_KINDS)
+
+
+def _exam_doc_filter_sql() -> str:
+    return _doc_filter_sql(EXAM_DOC_KINDS)
 
 
 def _is_lexical_heavy(question: str) -> bool:
@@ -486,7 +574,7 @@ def _refine_page_from_parent(
     estimated = parent.page_start + round(ratio * span)
     estimated = max(parent.page_start, min(parent.page_end, estimated))
 
-    hints = section_hints or section_page_hints(question)
+    hints = section_hints or section_page_hints(question, _active_course_id())
     if hints:
         for start, end in hints:
             if parent.page_start <= end and parent.page_end >= start:
@@ -505,7 +593,9 @@ def _vector_search(
     course_id: str,
     query_vec: list[float],
     limit: int,
+    doc_kinds: tuple[str, ...] = STUDY_DOC_KINDS,
 ) -> list[dict[str, Any]]:
+    doc_filter = _doc_filter_sql(doc_kinds)
     sql = text(
         f"""
         SELECT
@@ -522,7 +612,7 @@ def _vector_search(
         JOIN documents d ON d.id = c.document_id
         JOIN chunk_embeddings ce ON ce.chunk_id = c.id
         WHERE d.course_id = :course_id
-          AND {_study_doc_filter_sql()}
+          AND {doc_filter}
         ORDER BY ce.embedding <=> CAST(:query_vec AS vector)
         LIMIT :limit
         """
@@ -541,7 +631,9 @@ def _bm25_search(
     course_id: str,
     question: str,
     limit: int,
+    doc_kinds: tuple[str, ...] = STUDY_DOC_KINDS,
 ) -> list[dict[str, Any]]:
+    doc_filter = _doc_filter_sql(doc_kinds)
     sql = text(
         f"""
         SELECT
@@ -557,7 +649,7 @@ def _bm25_search(
         FROM chunks c
         JOIN documents d ON d.id = c.document_id
         WHERE d.course_id = :course_id
-          AND {_study_doc_filter_sql()}
+          AND {doc_filter}
           AND c.text_tsv @@ websearch_to_tsquery('english', :question)
         ORDER BY bm25_score DESC
         LIMIT :limit
@@ -576,12 +668,14 @@ def _metadata_toc_search(
     course_id: str,
     terms: list[str],
     limit: int,
+    doc_kinds: tuple[str, ...] = STUDY_DOC_KINDS,
 ) -> list[dict[str, Any]]:
     """BM25 over chunk outline metadata (section_title + toc_path)."""
     tsquery = _to_tsquery(terms)
     if not tsquery:
         return []
 
+    doc_filter = _doc_filter_sql(doc_kinds)
     sql = text(
         f"""
         SELECT
@@ -605,7 +699,7 @@ def _metadata_toc_search(
         FROM chunks c
         JOIN documents d ON d.id = c.document_id
         WHERE d.course_id = :course_id
-          AND {_study_doc_filter_sql()}
+          AND {doc_filter}
           AND to_tsvector(
                 'english',
                 coalesce(c.metadata->>'section_title', '')
@@ -629,12 +723,14 @@ def _bm25_and_terms_search(
     course_id: str,
     terms: list[str],
     limit: int,
+    doc_kinds: tuple[str, ...] = STUDY_DOC_KINDS,
 ) -> list[dict[str, Any]]:
     """BM25 requiring all terms (AND) — surfaces definition-style co-occurrence."""
     tsquery = _to_tsquery_and(terms)
     if not tsquery:
         return []
 
+    doc_filter = _doc_filter_sql(doc_kinds)
     sql = text(
         f"""
         SELECT
@@ -650,7 +746,7 @@ def _bm25_and_terms_search(
         FROM chunks c
         JOIN documents d ON d.id = c.document_id
         WHERE d.course_id = :course_id
-          AND {_study_doc_filter_sql()}
+          AND {doc_filter}
           AND c.text_tsv @@ to_tsquery('english', :tsquery)
         ORDER BY bm25_score DESC
         LIMIT :limit
@@ -671,12 +767,14 @@ def _bm25_page_bounded_and_search(
     page_start: int,
     page_end: int,
     limit: int,
+    doc_kinds: tuple[str, ...] = STUDY_DOC_KINDS,
 ) -> list[dict[str, Any]]:
     """AND BM25 within a page window (soft section prior for early-unit definition hits)."""
     tsquery = _to_tsquery_and(terms)
     if not tsquery:
         return []
 
+    doc_filter = _doc_filter_sql(doc_kinds)
     sql = text(
         f"""
         SELECT
@@ -692,7 +790,7 @@ def _bm25_page_bounded_and_search(
         FROM chunks c
         JOIN documents d ON d.id = c.document_id
         WHERE d.course_id = :course_id
-          AND {_study_doc_filter_sql()}
+          AND {doc_filter}
           AND c.page >= :page_start
           AND c.page <= :page_end
           AND c.text_tsv @@ to_tsquery('english', :tsquery)
@@ -719,11 +817,13 @@ def _bm25_focus_search(
     course_id: str,
     terms: list[str],
     limit: int,
+    doc_kinds: tuple[str, ...] = STUDY_DOC_KINDS,
 ) -> list[dict[str, Any]]:
     tsquery = _to_tsquery(terms)
     if not tsquery:
         return []
 
+    doc_filter = _doc_filter_sql(doc_kinds)
     sql = text(
         f"""
         SELECT
@@ -739,7 +839,7 @@ def _bm25_focus_search(
         FROM chunks c
         JOIN documents d ON d.id = c.document_id
         WHERE d.course_id = :course_id
-          AND {_study_doc_filter_sql()}
+          AND {doc_filter}
           AND c.text_tsv @@ to_tsquery('english', :tsquery)
         ORDER BY bm25_score DESC
         LIMIT :limit
@@ -824,7 +924,7 @@ def _rows_to_chunks(
     parent_ids = {row["parent_id"] for row in rows if row.get("parent_id")}
     parents = _load_parents(session, parent_ids)
     refine_terms = terms or []
-    sec_hints = section_page_hints(question) if question else []
+    sec_hints = section_page_hints(question, _active_course_id()) if question else []
     chunks: list[RetrievedChunk] = []
     for row in rows:
         parent_id = row.get("parent_id")
@@ -867,8 +967,10 @@ def fetch_hybrid_candidates(
     *,
     course_id: str,
     question: str,
+    doc_kinds: tuple[str, ...] | None = None,
 ) -> list[RetrievedChunk]:
     """Run vector + BM25 search and RRF-fuse to candidate chunks."""
+    kinds = doc_kinds if doc_kinds is not None else STUDY_DOC_KINDS
     terms = focus_terms(question)
     lexical = _is_lexical_heavy(question)
     vector_weight = settings.hybrid_vector_weight
@@ -888,24 +990,28 @@ def fetch_hybrid_candidates(
         course_id=course_id,
         query_vec=query_vec,
         limit=settings.retrieval_vector_top_k,
+        doc_kinds=kinds,
     )
     bm25_hits = _bm25_search(
         session,
         course_id=course_id,
         question=question,
         limit=settings.retrieval_bm25_top_k,
+        doc_kinds=kinds,
     )
     focus_hits = _bm25_focus_search(
         session,
         course_id=course_id,
         terms=terms,
         limit=settings.retrieval_bm25_top_k,
+        doc_kinds=kinds,
     )
     metadata_hits = _metadata_toc_search(
         session,
         course_id=course_id,
         terms=terms,
         limit=settings.retrieval_bm25_top_k,
+        doc_kinds=kinds,
     )
     extra: list[tuple[list[dict[str, Any]], float]] = []
     if focus_hits:
@@ -918,6 +1024,7 @@ def fetch_hybrid_candidates(
             course_id=course_id,
             terms=["evaluation", "criteria"],
             limit=settings.retrieval_bm25_top_k,
+            doc_kinds=kinds,
         )
         if eval_and_hits:
             extra.append((eval_and_hits, bm25_weight * 1.35))
@@ -928,6 +1035,7 @@ def fetch_hybrid_candidates(
             page_start=3,
             page_end=9,
             limit=settings.retrieval_bm25_top_k,
+            doc_kinds=kinds,
         )
         if early_eval_hits:
             extra.append((early_eval_hits, bm25_weight * 1.5))
@@ -936,6 +1044,7 @@ def fetch_hybrid_candidates(
             course_id=course_id,
             terms=["preliminary", "evaluation"],
             limit=settings.retrieval_bm25_top_k,
+            doc_kinds=kinds,
         )
         if prelim_meta:
             extra.append((prelim_meta, bm25_weight * 0.9))
@@ -950,6 +1059,21 @@ def fetch_hybrid_candidates(
         extra_lists=extra,
     )
     return _rows_to_chunks(session, fused, terms=terms, question=question)
+
+
+def fetch_exam_candidates(
+    session: Session,
+    *,
+    course_id: str,
+    question: str,
+) -> list[RetrievedChunk]:
+    """Hybrid retrieval limited to past_paper documents (exam preset)."""
+    return fetch_hybrid_candidates(
+        session,
+        course_id=course_id,
+        question=question,
+        doc_kinds=EXAM_DOC_KINDS,
+    )
 
 
 def retrieve_study(
