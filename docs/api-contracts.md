@@ -14,8 +14,9 @@ Owned by orchestrator. Workers **read**; propose migrations via orchestrator onl
 
 | Table | Purpose |
 |-------|---------|
-| `courses` | `id` (str PK), `name` |
-| `documents` | `course_id`, `filename`, `doc_kind`, `status`, `page_count`, `extraction_quality` (JSONB) |
+| `courses` | `id` (str PK), `name`, `outline_data` (JSONB), `structure_mode` (`corpus` \| `organized` \| `mapped`) |
+| `study_topics` | `id` (UUID PK), `course_id` FK, `title`, `sort_order` |
+| `documents` | `course_id`, `filename`, `doc_kind`, `status`, `page_count`, `extraction_quality` (JSONB), `topic_id` (nullable FK → `study_topics`) |
 | `chunk_parents` | Page-range parent text for hierarchical RAG |
 | `chunks` | Child chunks; `page`, `text`, `text_tsv` (generated tsvector), `metadata` JSONB |
 | `chunk_embeddings` | `embedding` Vector(384), `embedding_model`, HNSW index |
@@ -65,6 +66,18 @@ def ingest_document(
 |-------|------|----------|
 | `file` | PDF file | yes |
 | `doc_kind` | string | yes — `notes` \| `textbook` \| `syllabus` \| `past_paper` |
+| `upload_intent` | string | no — `quick` \| `topic` \| `past_paper` \| `syllabus`; default **`quick`** when omitted |
+
+**upload_intent validation (400):**
+
+| Rule | Detail |
+|------|--------|
+| Invalid value | Must be one of `quick`, `topic`, `past_paper`, `syllabus` |
+| `doc_kind=past_paper` | `upload_intent` must be `past_paper` |
+| `doc_kind=syllabus` | `upload_intent` must be `syllabus` |
+| `doc_kind` in `notes` \| `textbook` | `upload_intent` in `quick` \| `topic` \| `syllabus` |
+
+**Ingest behavior:** `upload_intent=quick` on `notes` skips auto TOC extraction into `courses.outline_data` (corpus layout). `topic` stores metadata only (no topic-scoped retrieval in 050c). Chunking, embeddings, PYQ parse, and PPL fixture outlines unchanged.
 
 **Behavior:** Save PDF to server upload dir → call `ingest_document()` synchronously (v1 pilot). Auto-creates course if missing (same as CLI). Re-upload same `(course_id, filename, doc_kind)` replaces chunks (idempotent).
 
@@ -78,7 +91,8 @@ def ingest_document(
   "doc_kind": "notes",
   "status": "ready",
   "page_count": 94,
-  "extraction_quality": { "nonempty_pages": 90, "outline": { "unit_count": 5 } }
+  "upload_intent": "quick",
+  "extraction_quality": { "nonempty_pages": 90, "upload_intent": "quick", "outline": { "unit_count": 5 } }
 }
 ```
 
@@ -86,7 +100,7 @@ def ingest_document(
 
 | Status | When |
 |--------|------|
-| 400 | Invalid `doc_kind`, non-PDF filename, unsupported content type |
+| 400 | Invalid `doc_kind`, invalid `upload_intent`, `upload_intent`/`doc_kind` mismatch, non-PDF filename, unsupported content type |
 | 422 | Ingest failed (`status: failed` or pipeline exception) — `detail` string |
 
 **Future:** Async job queue if ingest routinely exceeds ~30s (not v1).
@@ -260,9 +274,37 @@ Agent E and D implement to this shape; **no breaking changes** without contract 
   "course_id": "PPL",
   "question": "What is a lexeme?",
   "preset": "study",
-  "debug": false
+  "debug": false,
+  "source_ids": null
 }
 ```
+
+**Optional field — `source_ids` (Phase S — SP-050b):** `list[str] | null` — UUID strings restricting retrieval to specific documents. Omitted or `null` → unchanged behavior (all course docs for the preset's `doc_kinds`). Non-empty → hybrid retrieval filtered to `c.document_id IN (...)`. Empty list `[]` → **400** `source_ids must not be empty when provided`.
+
+**Validation (400 when `source_ids` provided):**
+
+| Rule | Detail |
+|------|--------|
+| UUID format | Each entry must be a valid UUID string |
+| Course ownership | Document must exist and belong to `course_id` |
+| Status | `ready` or `processing` only |
+| Study presets | `doc_kind` in `notes` \| `textbook` \| `syllabus` |
+| Exam preset | `doc_kind` must be `past_paper` |
+
+When `source_ids` is omitted, RRF weights, rerank, and gate thresholds are unchanged (golden eval invariant).
+
+**Optional field — `topic_ids` (Phase S — SP-051b):** `list[str] | null` — study topic UUID strings; restricts retrieval to documents with `documents.topic_id IN (...)`. Study presets only (`study`, `summary`, `flashcards`). Omitted or `null` → unchanged. Empty `[]` → **400**. Cannot combine with `source_ids` (400).
+
+**Validation (400 when `topic_ids` provided):**
+
+| Rule | Detail |
+|------|--------|
+| UUID format | Each entry must be a valid UUID string |
+| Course ownership | Topic must exist and belong to `course_id` |
+| Preset | Not allowed for `exam` preset |
+| Mutual exclusion | Cannot use with `source_ids` on the same request |
+
+When `topic_ids` is omitted, RRF weights, rerank, and gate thresholds are unchanged (golden eval invariant).
 
 **Response (200):**
 
@@ -294,7 +336,103 @@ Agent E and D implement to this shape; **no breaking changes** without contract 
 }
 ```
 
-**presets (Phase 1c):** `study` | `summary` | `flashcards` — start with `study` only.
+**Refusal debug (`debug: true`, Wave 9.1 — SP-015.2):** when `status` is `not_in_materials`, `retrieval_debug` may include:
+
+| Field | Values |
+|-------|--------|
+| `refusal_reason` | `empty_corpus` (no candidates before rerank) \| `below_threshold` (top rerank score below gate) |
+| `top_rerank_score` | float \| null — best rerank score before gate (if rerank ran) |
+| `exam_question_hits` | exam preset + `debug: true` only — parsed `exam_questions` matches (see exam retrieval note above) |
+
+Exam preset uses `min_rerank_score_exam` (**0.25**, env `MIN_RERANK_SCORE_EXAM`); study/summary/flashcards use `min_rerank_score` (**0.35**).
+
+**presets (Wave 6 — SP-032; Wave 8 — SP-015 exam):** `study` | `summary` | `flashcards` | `exam`. Study presets (`study`, `summary`, `flashcards`) share the same retrieval → rerank → gate path over **notes, textbook, and syllabus only** — **`past_paper` is excluded**. The `exam` preset uses the same rerank → gate → context path but retrieves **`past_paper` documents only** (notes/textbook/syllabus excluded). Only the generation prompt differs per preset. Unknown presets → **400** `Unsupported preset: …`.
+
+| Preset | Retrieval scope | Output |
+|--------|-----------------|--------|
+| `study` | notes, textbook, syllabus | Grounded Q&A answer with inline citations `[filename p.N]` |
+| `summary` | notes, textbook, syllabus | Concise bullet summary (`-` markdown bullets) focused on the question topic |
+| `flashcards` | notes, textbook, syllabus | 3–8 Q/A pairs in markdown (`**Q:**` / `**A:**`) from retrieved material |
+| `exam` | **past_paper only** | PYQ-focused answer: question style, similar past questions, brief note-review pointers; cite `[filename p.N]` |
+
+**Exam retrieval (Wave 9.5 — SP-042b):** When `exam_questions` rows exist for the course, the `exam` preset hybrid-fuses parsed question matches (BM25 + vector on `prompt_text`) with existing past_paper chunk RRF. Parsed questions rank candidates; **chunks on the same page supply citation text**. When no parsed rows exist, behavior is unchanged (chunk-only exam retrieval). Study presets are unaffected.
+
+**Debug (`debug: true`, exam preset only):** `retrieval_debug.exam_question_hits` — optional array of `{id, page, part, question_number, prompt_snippet}` from parsed question matches.
+
+**Example — `preset: summary` (200):**
+
+```json
+{
+  "status": "ok",
+  "answer": "- Lexeme: abstract linguistic unit [PPL notes.pdf p.11]\n- Token: surface form belonging to a lexeme [PPL notes.pdf p.12]",
+  "sources": […],
+  "rerank_scores": [0.82, 0.71]
+}
+```
+
+**Example — `preset: flashcards` (200):**
+
+```json
+{
+  "status": "ok",
+  "answer": "**Q:** What is a lexeme?\n**A:** The abstract unit of meaning. [PPL notes.pdf p.11]\n\n**Q:** How does a token relate to a lexeme?\n**A:** A token is a surface form that belongs to a lexeme category. [PPL notes.pdf p.12]",
+  "sources": […],
+  "rerank_scores": [0.82, 0.71]
+}
+```
+
+**Example — `preset: exam` (200):**
+
+```json
+{
+  "status": "ok",
+  "answer": "Past papers ask short-answer questions on lexemes vs tokens [PPL previous papers.pdf p.3]. Similar: \"Define lexeme and token with examples.\" Review vocabulary terminology in your course notes.",
+  "sources": [
+    {
+      "document_id": "uuid",
+      "filename": "PPL previous papers.pdf",
+      "page": 3,
+      "excerpt": "…"
+    }
+  ],
+  "rerank_scores": [0.85, 0.72]
+}
+```
+
+**Example — `preset: exam` refusal (no past papers ingested):**
+
+```json
+{
+  "status": "not_in_materials",
+  "answer": null,
+  "sources": [],
+  "rerank_scores": []
+}
+```
+
+**Manual verify (PowerShell, API on 8001):**
+
+```powershell
+# study (unchanged)
+curl.exe -X POST http://localhost:8001/api/v1/query `
+  -H "Content-Type: application/json" `
+  -d "{\"course_id\":\"PPL\",\"question\":\"What is a lexeme?\",\"preset\":\"study\"}"
+
+# summary
+curl.exe -X POST http://localhost:8001/api/v1/query `
+  -H "Content-Type: application/json" `
+  -d "{\"course_id\":\"PPL\",\"question\":\"Summarize lexemes and tokens\",\"preset\":\"summary\"}"
+
+# flashcards
+curl.exe -X POST http://localhost:8001/api/v1/query `
+  -H "Content-Type: application/json" `
+  -d "{\"course_id\":\"PPL\",\"question\":\"Lexemes and tokens\",\"preset\":\"flashcards\"}"
+
+# exam (past_paper sources only)
+curl.exe -X POST http://127.0.0.1:8001/api/v1/query/stream `
+  -H "Content-Type: application/json" `
+  -d "{\"course_id\":\"PPL\",\"question\":\"Questions on lexemes and tokens\",\"preset\":\"exam\",\"debug\":false}"
+```
 
 ---
 
@@ -345,9 +483,58 @@ curl.exe -N -X POST http://localhost:8001/api/v1/query/stream `
 
 ---
 
+### `GET /api/v1/courses/{course_id}/exam/status` (Wave 9.1 — SP-015.2)
+
+Read-only unified exam index / heatmap readiness. **No LLM**, no side effects.
+
+**Response (200):**
+
+```json
+{
+  "course_id": "PPL",
+  "documents_ready": true,
+  "document_count": 1,
+  "readable_pages": 20,
+  "total_pages": 30,
+  "chunk_count": 80,
+  "embedded_chunk_count": 80,
+  "embeddings_ready": true,
+  "parsed_questions": 42,
+  "question_count_source": "exam_questions",
+  "has_pyq_seed": true,
+  "exam_index_ready": true,
+  "heatmap_available": true,
+  "heatmap_source": "parsed",
+  "readable_char_threshold": 100,
+  "source_documents": [
+    {
+      "filename": "PPL previous papers.pdf",
+      "readable_pages": [3, 4, 5],
+      "chunk_count": 80
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `exam_index_ready` | `documents_ready` AND `chunk_count > 0` AND `embeddings_ready` |
+| `heatmap_available` | `documents_ready` AND (`parsed_questions > 0` OR `has_pyq_seed` OR `readable_pages > 0`) |
+| `heatmap_source` | `parsed` \| `seed` \| `keyword` \| `none` — **`parsed`** when `exam_questions` rows exist; else seed YAML; else keyword proxy |
+| `parsed_questions` | Live `COUNT(*)` from `exam_questions` for the course (Wave 9.4 — SP-042a) |
+| `question_count_source` | `exam_questions` when `parsed_questions > 0`; else `none` |
+
+**Response (404):** unknown `course_id`.
+
+**Response (200, empty corpus):** course exists, no `past_paper` docs — `documents_ready: false`, `exam_index_ready: false`, `heatmap_source: "none"`.
+
+---
+
 ### `GET /api/v1/courses/{course_id}/exam/topic-frequency` (Phase 3C-B)
 
 Read-only PYQ topic/unit frequency for exam-prediction UI. **No LLM**, no side effects.
+
+**Query params (Wave 6.7):** `detail=sections` — include per-section counts (default for generic courses with >12 sections: unit-level chapter counts only). Every unit object always includes a `sections` array; it is empty when rolled up to chapter level.
 
 **Response (200):**
 
@@ -378,7 +565,235 @@ Read-only PYQ topic/unit frequency for exam-prediction UI. **No LLM**, no side e
 
 **Response (200, empty):** course exists but no `past_paper` docs ingested — `total_questions_estimated: 0`, empty `source_documents`.
 
-**Data sources:** `eval/fixtures/ppl/ppl_pyq_seed.yaml` (primary v1) + keyword match on readable past_paper chunk text for unseeded pages. Study retrieval unchanged (`past_paper` excluded).
+**Data sources (priority, Wave 9.4 — SP-042a):**
+
+1. **`exam_questions` table** — when rows exist for the course, counts are exact (`total_questions_estimated` = row count; field name kept for contract compat). `coverage_note` summarizes extraction methods (`regex`, `seed_import`, `llm_assist`).
+2. **PPL seed YAML** — `eval/fixtures/ppl/ppl_pyq_seed.yaml` when no `exam_questions` rows (unchanged).
+3. **Keyword/page proxy** — generic courses: match chunk text to outline section titles.
+
+Keyword matching is at **section** level internally; response aggregates to **unit/chapter** counts when outline has >12 sections unless `?detail=sections`. Unmatched → `"Unclassified"`. Study retrieval unchanged.
+
+**Ingest idempotency (Agent B):** On `past_paper` re-ingest, delete existing `exam_questions` for that document before inserting parsed rows.
+
+**Example — generic Chemistry heatmap (unit rollup, default):**
+
+```json
+{
+  "course_id": "TEST101",
+  "total_questions_estimated": 8,
+  "coverage_note": "Matched 8 past-paper question(s) to outline topics by keyword (no PYQ seed).",
+  "units": [
+    { "unit": "1", "title": "Thermodynamics 1", "count": 3, "sections": [] },
+    { "unit": "2", "title": "Thermodynamics 2", "count": 2, "sections": [] }
+  ]
+}
+```
+
+---
+
+### `GET /api/v1/courses/{course_id}/documents` (Phase S — SP-050b)
+
+Read-only ingested document list for Flex Study source picker. **No LLM**, no side effects.
+
+**Response (200):**
+
+```json
+{
+  "course_id": "CHEM",
+  "documents": [
+    {
+      "document_id": "uuid-string",
+      "filename": "Chemistry notes.pdf",
+      "page_count": 25,
+      "status": "ready",
+      "doc_kind": "notes"
+    }
+  ]
+}
+```
+
+Documents with `status` in `ready` \| `processing` only; ordered by `created_at`, then `filename`. Same visibility rules as `study-layout` `sources`.
+
+**Response (404):** unknown `course_id`.
+
+**Manual verify:**
+
+```powershell
+curl.exe http://127.0.0.1:8002/api/v1/courses/chemistry/documents
+```
+
+---
+
+### `GET /api/v1/courses/{course_id}/study-layout` (Phase S — SP-050a, updated SP-051a)
+
+Read-only Flex Study sidebar mode and ingested document list. **No LLM**, no side effects.
+
+**Response (200):**
+
+```json
+{
+  "mode": "mapped",
+  "structure_mode": "mapped",
+  "course_id": "PPL",
+  "sources": [
+    {
+      "document_id": "uuid-string",
+      "filename": "PPL notes.pdf",
+      "page_count": 94,
+      "status": "ready",
+      "doc_kind": "notes"
+    }
+  ],
+  "sidebar_views": {
+    "sources": false,
+    "topics": false,
+    "course_map": true
+  },
+  "outline_available": true
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `mode` | Web sidebar mode: `mapped` or `corpus`. **`organized` → `corpus`** for 051a backward compat |
+| `structure_mode` | Persisted course mode: `corpus` \| `organized` \| `mapped` (Alembic 004 backfill: PPL, `chemistry`, `outline_quality=high` → `mapped`) |
+| `sources` | Documents with `status` in `ready` \| `processing`; ordered by `created_at`, then `filename` |
+| `sidebar_views` | Tab visibility flags (SP-052.2): which Flex Study sidebar views to show |
+| `sidebar_views.sources` | `true` when ready/processing documents exist; **PPL fixture → always `false`** (mapped-only sidebar) |
+| `sidebar_views.topics` | `true` when `study_topics.length > 0` **or** `structure_mode === "organized"`; PPL fixture → `false` |
+| `sidebar_views.course_map` | `true` when `GET .../outline` would return 200 (same as `outline_available` except PPL fixture → always `true`) |
+| `outline_available` | `true` when course outline is resolvable (fixture, stored outline, auto-stub, etc.) |
+| `promotion_hint` | Optional (SP-052): present when `structure_mode` is `corpus` and Course Map promotion is eligible |
+
+**Response (404):** unknown `course_id`.
+
+**Response (200, empty corpus):** course exists, no ready/processing documents — `sources: []` (mode still set per rules above).
+
+**Example — generic Chemistry (`corpus`):**
+
+```json
+{
+  "mode": "corpus",
+  "structure_mode": "corpus",
+  "course_id": "CHEM",
+  "sources": [
+    {
+      "document_id": "uuid-string",
+      "filename": "Chemistry notes.pdf",
+      "page_count": 25,
+      "status": "ready",
+      "doc_kind": "notes"
+    }
+  ],
+  "sidebar_views": {
+    "sources": true,
+    "topics": false,
+    "course_map": true
+  },
+  "outline_available": true
+}
+```
+
+**Manual verify:**
+
+```powershell
+curl.exe http://127.0.0.1:8002/api/v1/courses/PPL/study-layout
+curl.exe http://127.0.0.1:8002/api/v1/courses/CHEM/study-layout
+```
+
+---
+
+### Study topics CRUD (Phase S — SP-051a)
+
+User-defined topic buckets for **organized** mode. Additive routes; no retrieval changes until SP-051b.
+
+**GET `/api/v1/courses/{course_id}/study-topics` (200):**
+
+```json
+{
+  "course_id": "CHEM",
+  "topics": [
+    { "id": "uuid", "course_id": "CHEM", "title": "Thermodynamics", "sort_order": 1 }
+  ]
+}
+```
+
+**POST `/api/v1/courses/{course_id}/study-topics` (201):** body `{ "title": string, "sort_order": int }` (default 0).
+
+**PATCH `/api/v1/courses/{course_id}/study-topics/{topic_id}`:** body `{ "title"?: string, "sort_order"?: int }`.
+
+**DELETE `/api/v1/courses/{course_id}/study-topics/{topic_id}` (204):** deletes topic; `documents.topic_id` set null.
+
+**PATCH `/api/v1/documents/{document_id}`:** body `{ "topic_id": uuid-string | null }` — assign or clear topic (topic must belong to document's course).
+
+**Errors:** 404 unknown course/topic/document; 400 empty title or invalid UUID.
+
+**PATCH `/api/v1/courses/{course_id}/structure-mode` (SP-051b):** body `{ "structure_mode": "organized" | "corpus" }`. Promotes corpus → organized. Cannot demote PPL/mapped fixture courses to corpus (400). Response includes `structure_mode` and web `mode` (`organized` → `mode: corpus` until topic UI ships).
+
+**POST `/api/v1/courses/{course_id}/study-topics/bulk` (201, SP-051b):** body `{ "titles": ["Unit 1", "Unit 2", ...] }`. Creates topics with `sort_order` by index; sets `structure_mode=organized` when course was `corpus`.
+
+### Course Map promotion (Phase S — SP-052, SP-052.1)
+
+**GET `/api/v1/courses/{course_id}/course-map-eligibility` (200):**
+
+```json
+{
+  "eligible": true,
+  "outline_quality": "medium",
+  "structure_mode": "organized",
+  "reason": null,
+  "syllabus_filename": "CN syllabus.pdf",
+  "outline_preview": {
+    "outline_source": "extracted",
+    "unit_count": 5,
+    "unit_titles": ["Unit 1 Thermodynamics", "Unit 2 Atomic Structure"]
+  }
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `eligible` | `true` when `structure_mode` is `corpus` or `organized` (not already `mapped`) AND a ready syllabus document exists AND (`outline_quality` is `high`/`medium` with `outline_source` `extracted`/`uploaded` OR dry-run syllabus TOC extraction would succeed) |
+| `reason` | `null` when eligible; else `already_mapped`, `no_syllabus_document`, `no_outline`, or `outline_quality_not_high` |
+| `syllabus_filename` | Best-match syllabus PDF filename, or `null` |
+| `outline_preview` | Up to 5 unit titles from stored outline or dry-run extraction |
+
+**POST `/api/v1/courses/{course_id}/course-map/promote` (200):** extracts syllabus TOC into `courses.outline_data` (merges `study_topics` document assignments into unit `assigned_document_ids`), then sets `structure_mode=mapped`. Idempotent when already mapped with valid outline. **Repair path:** when `structure_mode=mapped` but `outline_data` is missing/invalid and a syllabus doc exists, re-runs extraction without changing mode (`promoted: false`, `repaired: true`). **422** when not eligible or syllabus extraction fails.
+
+```json
+{
+  "course_id": "CN",
+  "structure_mode": "mapped",
+  "mode": "mapped",
+  "promoted": true,
+  "repaired": false,
+  "outline_summary": {
+    "unit_count": 5,
+    "unit_titles": ["Unit 1 Thermodynamics", "Unit 2 Atomic Structure"],
+    "outline_quality": "medium",
+    "outline_source": "extracted"
+  }
+}
+```
+
+**POST `/api/v1/courses/{course_id}/course-map/rebuild-outline` (200, SP-052.1b):** re-extracts syllabus TOC into `outline_data` without changing `structure_mode`. For stuck mapped courses (e.g. pre-052.1 promote). **404** unknown course; **422** no syllabus or extraction failure.
+
+**Engineering syllabus (SP-052.3):** syllabi with Roman/dash `UNIT` blocks and prose topics (no page numbers, no `1.1` subsections) extract via `syllabus_block` parser. Units use synthetic 0-based page stubs (`unit N` → page `N-1`); topic paragraphs become section titles. Stored metadata: `outline_extraction_method: syllabus_block`.
+
+```json
+{
+  "course_id": "CN",
+  "rebuilt": true,
+  "outline_summary": {
+    "unit_count": 5,
+    "unit_titles": ["Unit 1 Thermodynamics", "Unit 2 Atomic Structure"],
+    "outline_quality": "medium",
+    "outline_source": "extracted"
+  }
+}
+```
+
+**PATCH `/api/v1/courses/{course_id}/structure-mode` demote rules (SP-052.1b):** user-promoted mapped courses (CN, chemistry, etc.) may demote to `corpus` or `organized`. **Fixture courses only** (`course_id=PPL` or `outline_path_for_course` YAML) cannot demote — **400**.
 
 ---
 
@@ -396,6 +811,7 @@ Read-only course table-of-contents for pre-query browse (Agent E TOC sidebar). *
   "document": "PPL notes.pdf",
   "page_index_base": 0,
   "page_count": 94,
+  "outline_source": "fixture",
   "front_matter": {
     "title": "Front matter",
     "page_start": 0,
@@ -424,9 +840,69 @@ Read-only course table-of-contents for pre-query browse (Agent E TOC sidebar). *
 }
 ```
 
-**Response (404):** unknown `course_id`, or course exists but no outline fixture (v1: PPL only via `eval/fixtures/ppl/ppl_outline.yaml`).
+**Outline resolution order (Wave 6.5 — SP-036, updated Wave 6.6 — SP-037):**
+
+| Priority | Source | `outline_source` |
+|----------|--------|------------------|
+| 1 | Course fixture YAML (PPL) | `fixture` |
+| 2 | `courses.outline_data` (manual upload) | `uploaded` |
+| 3 | `courses.outline_data` (TOC extracted on notes ingest or rebuild) | `extracted` |
+| 4 | Live auto-stub from notes page buckets | `auto_stub` |
+
+**TOC extraction (Wave 6.6 — no LLM; Wave 6.7 — chapter rollup; Wave 9.3 — SP-044 syllabus merge):** On `notes` ingest, the API tries PDF bookmarks then textual TOC. **`normalize_outline_chapters()`** rolls flat 20+ bookmark lists into chapter units when `Chapter`/`Unit`/`Module` markers are detected. **`syllabus_unit_merge`** (SP-044): when early pages parse as a printed syllabus TOC with page numbers (`Unit 1 … 12`, `1. Atomic Structure … 15`), sections are bucketed into those unit page spans instead of one sidebar unit per bookmark (fixes OU Chemistry 8→5 units). Fallback: merge adjacent units to 5 when outline has 6–12 units and ≥15 sections. Rejects outlines with >30 sections and no chapter structure. PPL fixture path unchanged; uploaded outlines are never overwritten.
+
+**Optional field — `outline_granularity`:** `"chapter"` | `"section"` | `"page_stub"` — indicates display density. Stored in `courses.outline_data` for extracted/uploaded outlines; inferred as `chapter` for PPL fixture, `page_stub` for auto-stub.
+
+**Optional field — `outline_quality` (Wave 7 — SP-039):** `"high"` | `"medium"` | `"low"` — extraction confidence. **high** = 3–12 chapter units, ≥2 sections, avg span ≥3 pages; **low** = auto_stub or page buckets.
+
+**Extraction pipeline (Wave 7):** bookmarks → text TOC → **body heading detection** (`page.get_text("dict")`, larger/bold fonts, numbered headings) → auto-stub. All successful extracts pass `normalize_outline_chapters()` then `normalize_outline()` (merge <3-page sections, cap ≤30 sections / ≤12 units).
+
+```json
+{
+  "course_id": "TEST101",
+  "outline_source": "extracted",
+  "outline_granularity": "chapter",
+  "units": [
+    { "id": "1", "title": "Thermodynamics 1", "sections": [{ "title": "Subtopic 1.1", "...": "..." }] }
+  ]
+}
+```
+
+**Response (404):** unknown `course_id`, or course exists with no fixture/upload/extracted/notes to derive an outline.
 
 **Page indices:** 0-based PDF pages (matches golden set and chunk `page` metadata from notes ingest).
+
+---
+
+### `POST /api/v1/courses/{course_id}/outline/rebuild` (Wave 6.6 — SP-037)
+
+Re-extract outline from existing ingested `notes` PDFs without re-upload. Useful after SP-036 auto-stub or when notes were ingested before extraction shipped.
+
+**Response (201):** Same shape as GET, with `"outline_source": "extracted"`.
+
+**Errors:** 404 unknown course; 409 uploaded outline locked or fixture-backed course; 422 no notes or extraction failed.
+
+```powershell
+curl.exe -X POST http://localhost:8001/api/v1/courses/TEST101/outline/rebuild
+```
+
+---
+
+### `POST /api/v1/courses/{course_id}/outline` (Wave 6.5 — SP-036, optional upload)
+
+Upload outline JSON matching the `DocumentOutline` shape (same fields as GET response minus `course_id` / `outline_source`). Overrides auto-stub for that course.
+
+**Request (201):** JSON body with `document`, `page_index_base`, `page_count`, `units[]` (required).
+
+**Response (201):** Same shape as GET, with `"outline_source": "uploaded"`.
+
+**Errors:** 404 unknown course; 400 invalid/missing units.
+
+```powershell
+curl.exe -X POST http://localhost:8001/api/v1/courses/TEST101/outline `
+  -H "Content-Type: application/json" `
+  -d "{\"document\":\"Chemistry notes.pdf\",\"page_index_base\":0,\"page_count\":25,\"units\":[{\"id\":\"1\",\"title\":\"Organic Chemistry\",\"page_start\":0,\"page_end\":24,\"sections\":[{\"title\":\"Alkanes\",\"page_start\":0,\"page_end\":12}]}]}"
+```
 
 ---
 
@@ -455,5 +931,10 @@ Agent C may develop against a **fixture DB** populated by `scripts/ingest_ppl.ps
 | `tests/test_course_outline.py` | D | Course TOC outline API |
 | `tests/test_query_stream.py` | D | SSE query stream |
 | `tests/test_document_upload.py` | D | Multipart document upload API |
+| `tests/test_study_layout.py` | D | Flex Study layout mode + sources API |
+| `tests/test_course_documents.py` | D | Course documents list API |
+| `tests/test_study_topics.py` | D | Study topics CRUD + structure_mode |
+| `tests/test_topic_scoped_retrieval.py` | D | topic_ids validation + structure-mode |
+| `tests/test_course_map_promotion.py` | D | Course Map eligibility + promote |
 
 All tests: run from `apps/api` with Postgres test DB (`studypilot_test` on port 5433).

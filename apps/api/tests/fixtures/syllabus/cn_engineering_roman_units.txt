@@ -1,0 +1,32 @@
+COMPUTER NETWORKS
+Engineering Course Syllabus
+
+UNIT - I Introduction to Computer Networks
+
+Network models and topologies used in modern communication systems.
+OSI reference model and TCP/IP protocol suite overview.
+Physical layer concepts including transmission media and encoding schemes.
+
+UNIT - II Data Link Layer and Medium Access Control
+
+Framing techniques, error detection, and error correction methods.
+Multiple access protocols including CSMA/CD and token passing.
+Ethernet standards and wireless LAN fundamentals.
+
+UNIT - III Network Layer and Addressing
+
+Routing algorithms including distance vector and link state approaches.
+IPv4 addressing, subnetting, and introduction to IPv6 essentials.
+Network layer design issues and congestion control overview.
+
+UNIT - IV Transport Layer Protocols
+
+TCP and UDP protocol operation and comparison.
+Flow control, reliability mechanisms, and socket programming basics.
+Transport Layer connection establishment and teardown procedures.
+
+UNIT - V Application Layer Services
+
+HTTP, DNS, email, and file transfer protocol fundamentals.
+Application Layer security themes and common network threats.
+Integration of Transport Layer and Application Layer concepts for end-to-end communication.
