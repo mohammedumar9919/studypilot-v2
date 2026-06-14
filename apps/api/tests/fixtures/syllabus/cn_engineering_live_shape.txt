@@ -1,0 +1,52 @@
+COMPUTER NETWORKS
+Engineering Course Syllabus
+
+UNIT - I Data Communication and Computer Networks
+
+Data Communication and Networks:
+Representation of data communication, flow of
+Networks, Transmission Media. (William stalling)., Multiplexing - Frequency division, Switching techniques
+
+Physical Layer and Transmission:
+Guided transmission media, wireless transmission, circuit switching and packet switching
+
+UNIT - II Data Link Layer and Local Area Networks
+
+Framing and Error Control:
+Framing techniques, error detection codes, error correction methods
+
+Medium Access Control:
+ALOHA protocols, CSMA/CD, token ring and token bus protocols
+
+Local Area Networks:
+Ethernet standards, wireless LAN fundamentals, VLAN concepts
+
+UNIT - III Network Layer and Routing
+
+Routing Algorithms:
+Distance vector routing, link state routing, hierarchical routing schemes
+
+IPv4 Addressing:
+Classful addressing, subnetting, CIDR notation and supernetting
+
+IPv6 and Transition:
+IPv6 header format, transition mechanisms, dual stack deployment
+
+Network Layer Services:
+Datagram networks, virtual circuit networks, congestion control overview
+
+UNIT - IV Transport Layer Protocols
+
+TCP Protocol:
+TCP segment structure, connection establishment, flow control and reliability
+
+UDP and Sockets:
+UDP datagram structure, socket programming basics, transport layer multiplexing
+
+UNIT - V Application Layer Services
+
+Web and Email Protocols:
+HTTP methods, SMTP fundamentals, MIME and multipart messages
+
+Application Security:
+DNS security themes, email threats, web application security overview

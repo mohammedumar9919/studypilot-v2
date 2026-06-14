@@ -8,7 +8,7 @@ import shutil
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, TypedDict
 
 import fitz
 import yaml
@@ -98,7 +98,32 @@ _ENGINEERING_UNIT_ROMAN_RE = re.compile(
     r"^unit\s+(?P<index>[IVXLCDM]+)\b(?!\.\d)\s*(?P<rest>.*)$",
     re.I,
 )
-_MAX_SECTIONS_WITHOUT_CHAPTER = 30
+_ENGINEERING_UNIT_ARABIC_RE = re.compile(
+    r"^unit\s+(?P<index>\d+)\b(?!\.\d)\s*(?P<rest>.*)$",
+    re.I,
+)
+_ENGINEERING_FOOTER_READINGS_RE = re.compile(
+    r"^(?:suggested\s+readings?|references)\s*:?\s*$",
+    re.I,
+)
+_ENGINEERING_FOOTER_PROGRAM_RE = re.compile(
+    r"^BE\s*\(\s*Computer\s+Science",
+    re.I,
+)
+_ENGINEERING_EMBEDDED_PART_HEADING_RE = re.compile(
+    r"(?<=[.,])\s*([A-Z][a-z]+(?:\s+[A-Za-z]+){0,7}):\s+",
+)
+
+
+class EngineeringSyllabusPart(TypedDict):
+    part_title: str
+    subtopic_titles: list[str]
+
+
+class EngineeringSyllabusUnit(TypedDict, total=False):
+    unit_title: str
+    subtopic_titles: list[str]
+    parts: list[EngineeringSyllabusPart]
 
 
 @dataclass
@@ -1627,15 +1652,27 @@ def _parse_engineering_unit_index(token: str) -> int | None:
 
 
 def _match_engineering_unit_header(line: str) -> tuple[int | None, str] | None:
+    return _match_engineering_syllabus_unit_header(line, allow_arabic=False)
+
+
+def _match_engineering_syllabus_unit_header(
+    line: str,
+    *,
+    allow_arabic: bool = True,
+) -> tuple[int | None, str] | None:
     clean = line.strip()
     if not clean:
         return None
 
-    for pattern in (
+    patterns = [
         _ENGINEERING_UNIT_DASHED_RE,
         _ENGINEERING_UNIT_HYPHEN_DIGIT_RE,
         _ENGINEERING_UNIT_ROMAN_RE,
-    ):
+    ]
+    if allow_arabic:
+        patterns.append(_ENGINEERING_UNIT_ARABIC_RE)
+
+    for pattern in patterns:
         match = pattern.match(clean)
         if match is None:
             continue
@@ -1644,9 +1681,422 @@ def _match_engineering_unit_header(line: str) -> tuple[int | None, str] | None:
             continue
         unit_index = _parse_engineering_unit_index(index_token)
         rest = match.group("rest").strip(" -–:")
+        rest = _SYLLABUS_TOC_PAGE_SUFFIX_RE.sub("", rest).strip()
         title = f"Unit {index_token} {rest}".strip() if rest else f"Unit {index_token}"
         return unit_index, title
     return None
+
+
+def _match_engineering_structure_unit_header(line: str) -> tuple[int | None, str] | None:
+    """Match UNIT headers for structure import, including plain Arabic ``Unit 1`` lines."""
+    return _match_engineering_syllabus_unit_header(line, allow_arabic=True)
+
+
+def _merge_wrapped_pdf_lines(lines: list[str]) -> list[str]:
+    """Join broken PDF line wraps before syllabus parsing."""
+    if not lines:
+        return []
+
+    merged: list[str] = []
+    buffer = lines[0].strip()
+    for line in lines[1:]:
+        stripped = line.strip()
+        if not stripped:
+            if buffer:
+                merged.append(buffer)
+                buffer = ""
+            continue
+        if not buffer:
+            buffer = stripped
+            continue
+        if _should_merge_wrapped_pdf_line(buffer, stripped):
+            if buffer.endswith("-"):
+                buffer = buffer[:-1] + stripped
+            else:
+                buffer = f"{buffer} {stripped}"
+        else:
+            merged.append(buffer)
+            buffer = stripped
+    if buffer:
+        merged.append(buffer)
+    return merged
+
+
+def _should_merge_wrapped_pdf_line(previous: str, nxt: str) -> bool:
+    if _match_engineering_structure_unit_header(nxt) is not None:
+        return False
+    if _is_engineering_syllabus_part_heading_line(nxt):
+        return False
+    if previous.count("(") > previous.count(")"):
+        return True
+    if previous.endswith(":"):
+        return False
+    if previous.endswith("-") and nxt and nxt[0].isalpha():
+        return True
+    if nxt and nxt[0].islower():
+        return True
+    if previous.endswith(","):
+        return True
+    if previous.endswith(" and") or previous.endswith(" and."):
+        return True
+    trailing = previous.rsplit(None, 1)[-1].lower()
+    if trailing in {"of", "and", "or", "the", "a", "an", "to", "in", "for", "with", "flow"}:
+        return True
+    if not re.search(r"[.:;!?)]$", previous) and len(nxt.split()) <= 6:
+        return True
+    return False
+
+
+def _split_comma_separated_topics(text: str) -> list[str]:
+    """Split comma-separated syllabus topics, ignoring commas inside parentheses."""
+    clean = re.sub(r"\s+", " ", text.strip())
+    if not clean:
+        return []
+
+    topics: list[str] = []
+    current: list[str] = []
+    depth = 0
+    for char in clean:
+        if char == "(":
+            depth += 1
+            current.append(char)
+        elif char == ")":
+            depth = max(0, depth - 1)
+            current.append(char)
+        elif char == "," and depth == 0:
+            topic = "".join(current).strip(" ,;")
+            if topic:
+                topics.append(topic)
+            current = []
+        else:
+            current.append(char)
+    topic = "".join(current).strip(" ,;")
+    if topic:
+        topics.append(topic)
+    return topics
+
+
+def _is_engineering_inline_part_continuation(part_title: str) -> bool:
+    """True for wrapped acronym continuations like ``DHCP.Network Routing Algorithms``."""
+    clean = part_title.strip()
+    return bool(re.match(r"^[A-Z]{2,}\.", clean))
+
+
+def _looks_like_engineering_part_heading_prefix(prefix: str) -> bool:
+    clean = prefix.strip()
+    if not clean or len(clean) > 80:
+        return False
+    if _is_engineering_inline_part_continuation(clean):
+        return False
+    if _match_engineering_structure_unit_header(clean) is not None:
+        return False
+    if _ENGINEERING_FOOTER_READINGS_RE.match(clean):
+        return False
+    if _ENGINEERING_FOOTER_PROGRAM_RE.match(clean):
+        return False
+    if re.search(r"[(),]", clean):
+        return False
+    if len(clean.split()) > 12:
+        return False
+    return clean[0].isupper()
+
+
+def _split_engineering_part_heading_line(line: str) -> tuple[str | None, str]:
+    """Return (part_title, remainder) for standalone or inline part headings."""
+    clean = line.strip()
+    if not clean:
+        return None, ""
+
+    if clean.endswith(":") and clean.count(":") == 1:
+        prefix = clean.rstrip(":").strip()
+        if _looks_like_engineering_part_heading_prefix(prefix):
+            return prefix, ""
+        return None, clean
+
+    colon_pos = clean.find(":")
+    if colon_pos > 0:
+        prefix = clean[:colon_pos].strip()
+        suffix = clean[colon_pos + 1 :].strip()
+        if _looks_like_engineering_part_heading_prefix(prefix):
+            return prefix, suffix
+    return None, clean
+
+
+def _is_false_embedded_heading_after_acronym(text: str, match: re.Match[str]) -> bool:
+    """Skip embedded headings immediately after an acronym period (e.g. ``DHCP.``)."""
+    pos = match.start()
+    while pos > 0 and text[pos - 1].isspace():
+        pos -= 1
+    if pos == 0 or text[pos - 1] != ".":
+        return False
+    pos -= 1
+    acronym_len = 0
+    while pos > 0 and text[pos - 1].isupper():
+        acronym_len += 1
+        pos -= 1
+    return acronym_len >= 2
+
+
+def _iter_engineering_part_segments(line: str) -> list[tuple[str | None, str]]:
+    """Split a syllabus line into ordered (part_title, topic_text) segments."""
+    clean = line.strip()
+    if not clean:
+        return []
+
+    first_title, first_remainder = _split_engineering_part_heading_line(clean)
+    if first_title is None:
+        return [(None, clean)]
+
+    segments: list[tuple[str | None, str]] = []
+    current_title = first_title
+    topic_chunk = first_remainder
+    search_from = 0
+
+    while True:
+        match = _ENGINEERING_EMBEDDED_PART_HEADING_RE.search(topic_chunk, search_from)
+        if match is None:
+            trimmed = topic_chunk.strip(" .,;")
+            if trimmed or not segments:
+                segments.append((current_title, trimmed))
+            break
+        if _is_false_embedded_heading_after_acronym(topic_chunk, match):
+            search_from = match.end()
+            continue
+        embedded_title = match.group(1).strip()
+        if (
+            "," in embedded_title
+            or _is_engineering_inline_part_continuation(embedded_title)
+            or not _looks_like_engineering_part_heading_prefix(embedded_title)
+        ):
+            segments.append((current_title, topic_chunk.strip(" .,;")))
+            break
+        prefix = topic_chunk[: match.start()].strip(" .,;")
+        segments.append((current_title, prefix))
+        current_title = embedded_title
+        topic_chunk = topic_chunk[match.end() :].strip()
+
+    return segments
+
+
+def _is_engineering_syllabus_part_heading_line(line: str, *, is_bold: bool = False) -> bool:
+    clean = line.strip()
+    if not clean or _match_engineering_structure_unit_header(clean) is not None:
+        return False
+    part_title, _remainder = _split_engineering_part_heading_line(clean)
+    if part_title is not None and clean.lower().startswith(part_title.lower()):
+        return True
+    if not is_bold:
+        return False
+    if "," in clean:
+        return False
+    return len(clean.split()) <= 12
+
+
+def _strip_engineering_syllabus_footer_lines(
+    body_lines: list[tuple[str, bool]],
+) -> list[tuple[str, bool]]:
+    """Drop bibliography footers and program page stamps before unit-body parsing."""
+    filtered: list[tuple[str, bool]] = []
+    for line, is_bold in body_lines:
+        clean = line.strip()
+        if not clean:
+            continue
+        if _ENGINEERING_FOOTER_READINGS_RE.match(clean):
+            break
+        if _ENGINEERING_FOOTER_PROGRAM_RE.match(clean):
+            continue
+        if re.search(r"page\s+\d+\s*$", clean, re.I) and _ENGINEERING_FOOTER_PROGRAM_RE.search(clean):
+            continue
+        filtered.append((line, is_bold))
+    return filtered
+
+
+def _iter_engineering_syllabus_lines(page: PageText) -> list[tuple[str, bool]]:
+    page_dict = page.metadata.get("page_dict")
+    if isinstance(page_dict, dict):
+        styled: list[tuple[str, bool]] = []
+        for block in page_dict.get("blocks", []):
+            if block.get("type") != 0:
+                continue
+            for line in block.get("lines", []):
+                spans = line.get("spans", [])
+                if not spans:
+                    continue
+                text = "".join(str(span.get("text", "")) for span in spans).strip()
+                if not text:
+                    continue
+                is_bold = any("bold" in str(span.get("font", "")).lower() for span in spans)
+                styled.append((text, is_bold))
+        if styled:
+            return styled
+    return [(line, False) for line in page.text.splitlines()]
+
+
+def _parse_engineering_syllabus_unit_body(
+    body_lines: list[tuple[str, bool]],
+) -> tuple[list[EngineeringSyllabusPart] | None, list[str]]:
+    body_lines = _strip_engineering_syllabus_footer_lines(body_lines)
+    merged_lines = _merge_wrapped_pdf_lines([line for line, _bold in body_lines if line.strip()])
+    if not merged_lines:
+        return None, []
+
+    bold_by_line = {line.strip(): bold for line, bold in body_lines if line.strip()}
+    has_part_headings = any(
+        _is_engineering_syllabus_part_heading_line(
+            line.strip(),
+            is_bold=bold_by_line.get(line.strip(), False),
+        )
+        for line in merged_lines
+        if line.strip()
+    )
+    if not has_part_headings:
+        return None, _engineering_syllabus_topic_titles("\n".join(merged_lines))
+
+    parts: list[EngineeringSyllabusPart] = []
+    current_part_title: str | None = None
+    current_part_topics: list[str] = []
+
+    for line in merged_lines:
+        clean = line.strip()
+        if not clean:
+            continue
+
+        segments = _iter_engineering_part_segments(clean)
+        if len(segments) == 1 and segments[0][0] is None:
+            current_part_topics.extend(_split_comma_separated_topics(segments[0][1]))
+            continue
+
+        for part_title, topic_text in segments:
+            if part_title is None:
+                current_part_topics.extend(_split_comma_separated_topics(topic_text))
+                continue
+            if _is_engineering_inline_part_continuation(part_title):
+                continuation = part_title
+                if topic_text:
+                    continuation = f"{continuation}: {topic_text}"
+                current_part_topics.extend(_split_comma_separated_topics(continuation))
+                continue
+            if current_part_title and current_part_topics:
+                parts.append(
+                    {
+                        "part_title": current_part_title,
+                        "subtopic_titles": current_part_topics,
+                    }
+                )
+            current_part_title = part_title
+            current_part_topics = _split_comma_separated_topics(topic_text) if topic_text else []
+
+    if current_part_title and current_part_topics:
+        parts.append(
+            {
+                "part_title": current_part_title,
+                "subtopic_titles": current_part_topics,
+            }
+        )
+
+    if parts:
+        return parts, []
+
+    return None, _engineering_syllabus_topic_titles("\n".join(merged_lines))
+
+
+def _flatten_engineering_syllabus_subtopics(unit: EngineeringSyllabusUnit) -> list[str]:
+    parts = unit.get("parts")
+    if parts:
+        flattened: list[str] = []
+        for part in parts:
+            flattened.extend(part["subtopic_titles"])
+        return flattened
+    return unit.get("subtopic_titles", [])
+
+
+def _repair_engineering_unit_titles(units: list[EngineeringSyllabusUnit], *, needs_repair: bool) -> None:
+    if not needs_repair:
+        return
+    roman_tokens = ("I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII")
+    for position, unit in enumerate(units):
+        token = roman_tokens[position] if position < len(roman_tokens) else str(position + 1)
+        rest = re.sub(r"^Unit\s+[IVXLCDM\d]+\s*", "", unit["unit_title"], flags=re.I).strip()
+        unit["unit_title"] = f"Unit {token} {rest}".strip() if rest else f"Unit {token}"
+
+
+def _parse_engineering_syllabus_structure_v2(
+    pages: list[PageText],
+    *,
+    allow_arabic_unit_header: bool = True,
+) -> list[EngineeringSyllabusUnit]:
+    raw_blocks: list[tuple[int | None, str, list[EngineeringSyllabusPart] | None, list[str]]] = []
+    current_title: str | None = None
+    current_index: int | None = None
+    body_lines: list[tuple[str, bool]] = []
+
+    def _flush_body() -> None:
+        nonlocal current_title, current_index, body_lines
+        if current_title is None:
+            body_lines = []
+            return
+        parts, flat_topics = _parse_engineering_syllabus_unit_body(body_lines)
+        raw_blocks.append((current_index, current_title, parts, flat_topics))
+        body_lines = []
+
+    for page in pages:
+        for line, is_bold in _iter_engineering_syllabus_lines(page):
+            header = _match_engineering_syllabus_unit_header(
+                line,
+                allow_arabic=allow_arabic_unit_header,
+            )
+            if header is not None:
+                _flush_body()
+                current_index, current_title = header
+                continue
+            if current_title is not None and line.strip():
+                body_lines.append((line.strip(), is_bold))
+    _flush_body()
+
+    if len(raw_blocks) < 2:
+        return []
+
+    parsed_indices = [index for index, _, _, _ in raw_blocks]
+    unique_indices = {index for index in parsed_indices if index is not None}
+    index_counts = Counter(index for index in parsed_indices if index is not None)
+    max_repeat = max(index_counts.values(), default=0)
+    needs_repair = (
+        len(unique_indices) < max(2, len(raw_blocks) // 2)
+        or len(unique_indices) == 1
+        or max_repeat >= 3
+    )
+
+    units: list[EngineeringSyllabusUnit] = []
+    for position, (index, title, parts, flat_topics) in enumerate(raw_blocks):
+        unit_index = position + 1 if needs_repair else (index if index is not None else position + 1)
+        unit: EngineeringSyllabusUnit = {"unit_title": title}
+        if parts:
+            unit["parts"] = parts
+            unit["subtopic_titles"] = _flatten_engineering_syllabus_part_topics(parts)
+        else:
+            subtopic_titles = flat_topics
+            if not subtopic_titles:
+                subtopic_titles = _engineering_syllabus_topic_titles(title) or [title[:80]]
+            unit["subtopic_titles"] = subtopic_titles
+        if unit_index != index:
+            token = ("I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII")[
+                unit_index - 1
+            ] if 1 <= unit_index <= 12 else str(unit_index)
+            rest = re.sub(r"^Unit\s+[IVXLCDM\d]+\s*", "", title, flags=re.I).strip()
+            unit["unit_title"] = f"Unit {token} {rest}".strip() if rest else f"Unit {token}"
+        units.append(unit)
+
+    _repair_engineering_unit_titles(units, needs_repair=needs_repair)
+    return units
+
+
+def _flatten_engineering_syllabus_part_topics(parts: list[EngineeringSyllabusPart] | None) -> list[str]:
+    if not parts:
+        return []
+    flattened: list[str] = []
+    for part in parts:
+        flattened.extend(part["subtopic_titles"])
+    return flattened
 
 
 def _engineering_syllabus_topic_titles(
@@ -1695,48 +2145,41 @@ def _repair_engineering_unit_indices(
     return repaired
 
 
+def _parse_engineering_syllabus_structure(
+    pages: list[PageText],
+) -> list[EngineeringSyllabusUnit]:
+    """Parse engineering syllabus pages into unit titles and subtopic lists for structure import."""
+    try:
+        return _parse_engineering_syllabus_structure_v2(pages)
+    except Exception:
+        logger.debug("Engineering syllabus structure parse failed", exc_info=True)
+        return []
+
+
 def _parse_engineering_syllabus_unit_blocks(
     pages: list[PageText],
 ) -> list[tuple[int, str, list[str]]] | None:
     """Parse Roman/dash UNIT blocks from engineering syllabi without page numbers."""
-    raw_blocks: list[tuple[int | None, str, list[str]]] = []
-    current_title: str | None = None
-    current_index: int | None = None
-    body_lines: list[str] = []
-
-    def _flush_body() -> None:
-        nonlocal current_title, current_index, body_lines
-        if current_title is None:
-            body_lines = []
-            return
-        topics = _engineering_syllabus_topic_titles("\n".join(body_lines))
-        raw_blocks.append((current_index, current_title, topics))
-        body_lines = []
-
-    for page in pages:
-        for line in page.text.splitlines():
-            header = _match_engineering_unit_header(line)
-            if header is not None:
-                _flush_body()
-                current_index, current_title = header
-                continue
-            if current_title is not None and line.strip():
-                body_lines.append(line.strip())
-    _flush_body()
-
-    if len(raw_blocks) < 2:
+    try:
+        parsed_units = _parse_engineering_syllabus_structure_v2(
+            pages,
+            allow_arabic_unit_header=False,
+        )
+    except Exception:
+        logger.debug("Engineering syllabus unit block parse failed", exc_info=True)
+        return None
+    if len(parsed_units) < 2:
         return None
 
-    repaired = _repair_engineering_unit_indices(raw_blocks)
-    for index, (unit_index, title, topics) in enumerate(repaired):
-        if topics:
-            continue
-        repaired[index] = (
-            unit_index,
-            title,
-            _engineering_syllabus_topic_titles(title) or [title[:80]],
-        )
-    return repaired
+    blocks: list[tuple[int, str, list[str]]] = []
+    for position, unit in enumerate(parsed_units):
+        header = _match_engineering_unit_header(unit["unit_title"])
+        unit_index = header[0] if header and header[0] is not None else position + 1
+        topics = unit.get("subtopic_titles") or []
+        if not topics:
+            topics = _engineering_syllabus_topic_titles(unit["unit_title"]) or [unit["unit_title"][:80]]
+        blocks.append((unit_index, unit["unit_title"], topics))
+    return blocks
 
 
 def _raw_outline_from_engineering_syllabus(pages: list[PageText]) -> DocumentOutline | None:

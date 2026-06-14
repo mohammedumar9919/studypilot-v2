@@ -43,7 +43,19 @@ def migrated_db():
 def db_session(migrated_db):
     engine = create_engine(settings.test_database_url)
     session = sessionmaker(bind=engine)()
-    for table in ("chunk_embeddings", "chunks", "chunk_parents", "documents", "courses"):
+    for table in (
+        "chunk_embeddings",
+        "chunks",
+        "chunk_parents",
+        "exam_questions",
+        "document_subtopic_links",
+        "document_unit_links",
+        "course_subtopics",
+        "course_units",
+        "documents",
+        "study_topics",
+        "courses",
+    ):
         session.execute(text(f"TRUNCATE {table} CASCADE"))
     session.commit()
     try:

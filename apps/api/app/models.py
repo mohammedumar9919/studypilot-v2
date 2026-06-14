@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, func
+from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -14,7 +14,133 @@ class Course(Base):
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
+    outline_data: Mapped[dict | None] = mapped_column(JSONB)
+    structure_mode: Mapped[str] = mapped_column(String(32), nullable=False, default="corpus", server_default="corpus")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    study_topics: Mapped[list["StudyTopic"]] = relationship(back_populates="course")
+    course_units: Mapped[list["CourseUnit"]] = relationship(back_populates="course")
+
+
+class StudyTopic(Base):
+    __tablename__ = "study_topics"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    course_id: Mapped[str] = mapped_column(String(64), ForeignKey("courses.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(512), nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    course: Mapped["Course"] = relationship(back_populates="study_topics")
+    documents: Mapped[list["Document"]] = relationship(back_populates="topic")
+
+
+class CourseUnit(Base):
+    __tablename__ = "course_units"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    course_id: Mapped[str] = mapped_column(String(64), ForeignKey("courses.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(512), nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    course: Mapped["Course"] = relationship(back_populates="course_units")
+    parts: Mapped[list["CoursePart"]] = relationship(back_populates="unit", cascade="all, delete-orphan")
+    subtopics: Mapped[list["CourseSubtopic"]] = relationship(back_populates="unit", cascade="all, delete-orphan")
+    document_links: Mapped[list["DocumentUnitLink"]] = relationship(back_populates="unit", cascade="all, delete-orphan")
+
+
+class CoursePart(Base):
+    __tablename__ = "course_parts"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    unit_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("course_units.id", ondelete="CASCADE"),
+        index=True,
+    )
+    title: Mapped[str] = mapped_column(String(512), nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    unit: Mapped["CourseUnit"] = relationship(back_populates="parts")
+    subtopics: Mapped[list["CourseSubtopic"]] = relationship(back_populates="part", cascade="all, delete-orphan")
+    document_links: Mapped[list["DocumentPartLink"]] = relationship(
+        back_populates="part",
+        cascade="all, delete-orphan",
+    )
+
+
+class CourseSubtopic(Base):
+    __tablename__ = "course_subtopics"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    unit_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("course_units.id", ondelete="CASCADE"),
+        index=True,
+    )
+    part_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("course_parts.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    title: Mapped[str] = mapped_column(String(512), nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    unit: Mapped["CourseUnit"] = relationship(back_populates="subtopics")
+    part: Mapped["CoursePart | None"] = relationship(back_populates="subtopics")
+    document_links: Mapped[list["DocumentSubtopicLink"]] = relationship(
+        back_populates="subtopic",
+        cascade="all, delete-orphan",
+    )
+
+
+class DocumentUnitLink(Base):
+    __tablename__ = "document_unit_links"
+
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    unit_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("course_units.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+
+    document: Mapped["Document"] = relationship(back_populates="unit_links")
+    unit: Mapped["CourseUnit"] = relationship(back_populates="document_links")
+
+
+class DocumentSubtopicLink(Base):
+    __tablename__ = "document_subtopic_links"
+
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    subtopic_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("course_subtopics.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+
+    document: Mapped["Document"] = relationship(back_populates="subtopic_links")
+    subtopic: Mapped["CourseSubtopic"] = relationship(back_populates="document_links")
+
+
+class DocumentPartLink(Base):
+    __tablename__ = "document_part_links"
+
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    part_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("course_parts.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+
+    document: Mapped["Document"] = relationship(back_populates="part_links")
+    part: Mapped["CoursePart"] = relationship(back_populates="document_links")
 
 
 class Document(Base):
@@ -29,6 +155,11 @@ class Document(Base):
     file_path: Mapped[str | None] = mapped_column(Text)
     extraction_quality: Mapped[dict | None] = mapped_column(JSONB)
     error_message: Mapped[str | None] = mapped_column(Text)
+    topic_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("study_topics.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -36,6 +167,40 @@ class Document(Base):
 
     parents: Mapped[list["ChunkParent"]] = relationship(back_populates="document")
     chunks: Mapped[list["Chunk"]] = relationship(back_populates="document")
+    exam_questions: Mapped[list["ExamQuestion"]] = relationship(back_populates="document")
+    topic: Mapped["StudyTopic | None"] = relationship(back_populates="documents")
+    unit_links: Mapped[list["DocumentUnitLink"]] = relationship(back_populates="document", cascade="all, delete-orphan")
+    subtopic_links: Mapped[list["DocumentSubtopicLink"]] = relationship(
+        back_populates="document",
+        cascade="all, delete-orphan",
+    )
+    part_links: Mapped[list["DocumentPartLink"]] = relationship(
+        back_populates="document",
+        cascade="all, delete-orphan",
+    )
+
+
+class ExamQuestion(Base):
+    __tablename__ = "exam_questions"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"), index=True
+    )
+    course_id: Mapped[str] = mapped_column(String(64), ForeignKey("courses.id"), index=True)
+    page: Mapped[int] = mapped_column(Integer, nullable=False)
+    paper_label: Mapped[str | None] = mapped_column(String(128))
+    part: Mapped[str | None] = mapped_column(String(8))
+    question_number: Mapped[str | None] = mapped_column(String(16))
+    prompt_text: Mapped[str] = mapped_column(Text, nullable=False)
+    marks: Mapped[int | None] = mapped_column(Integer)
+    unit: Mapped[str | None] = mapped_column(String(16))
+    section_title: Mapped[str | None] = mapped_column(String(512))
+    extraction_method: Mapped[str] = mapped_column(String(32), nullable=False, default="regex")
+    confidence: Mapped[float | None] = mapped_column(Float)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    document: Mapped["Document"] = relationship(back_populates="exam_questions")
 
 
 class ChunkParent(Base):
@@ -89,3 +254,14 @@ Index(
     postgresql_where=(Document.status == "ready"),
 )
 Index("idx_chunks_document_page", Chunk.document_id, Chunk.page)
+Index("idx_exam_questions_course_page", ExamQuestion.course_id, ExamQuestion.page)
+Index("idx_exam_questions_document_page", ExamQuestion.document_id, ExamQuestion.page)
+Index("idx_exam_questions_course_unit", ExamQuestion.course_id, ExamQuestion.unit)
+Index("idx_study_topics_course_sort", StudyTopic.course_id, StudyTopic.sort_order)
+Index("idx_course_units_course_sort", CourseUnit.course_id, CourseUnit.sort_order)
+Index("idx_course_subtopics_unit_sort", CourseSubtopic.unit_id, CourseSubtopic.sort_order)
+Index("idx_course_parts_unit_sort", CoursePart.unit_id, CoursePart.sort_order)
+Index("idx_course_subtopics_part_sort", CourseSubtopic.part_id, CourseSubtopic.sort_order)
+Index("idx_document_unit_links_unit_id", DocumentUnitLink.unit_id)
+Index("idx_document_subtopic_links_subtopic_id", DocumentSubtopicLink.subtopic_id)
+Index("idx_document_part_links_part_id", DocumentPartLink.part_id)

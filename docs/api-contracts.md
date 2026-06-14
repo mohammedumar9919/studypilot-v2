@@ -1,8 +1,12 @@
 # API & schema contracts (frozen)
 
-**Version:** 1.0.0  
+**Version:** 1.2.0  
 **Status:** Frozen for Phase 1 parallel work (Agent B ingest ∥ Agent C retrieval prep).  
 **Change process:** Orchestrator + human approval only. Bump version and notify all active agents.
+
+**1.2.0 (2026-06-13 — SP-053a.1):** Additive `course_parts`, nullable `course_subtopics.part_id`, `document_part_links` schema. Nested structure API: `units[].parts[].subtopics[]` or flat `units[].subtopics[]`. Paste import supports 3-level indent (0=unit, 2=part, 4=topic/comma line). Confirm/import-syllabus accept nested preview payloads; flat `{ title, subtopics }` remains valid.
+
+**1.1.0 (2026-06-07 — SP-053a):** Additive course structure schema (`course_units`, `course_subtopics`, document link tables) and `/structure/*` preview/confirm APIs. `study_topics` retained (deprecated path, not removed).
 
 Agents B and C must implement against these interfaces without cross-editing each other's modules.
 
@@ -15,7 +19,13 @@ Owned by orchestrator. Workers **read**; propose migrations via orchestrator onl
 | Table | Purpose |
 |-------|---------|
 | `courses` | `id` (str PK), `name`, `outline_data` (JSONB), `structure_mode` (`corpus` \| `organized` \| `mapped`) |
-| `study_topics` | `id` (UUID PK), `course_id` FK, `title`, `sort_order` |
+| `study_topics` | `id` (UUID PK), `course_id` FK, `title`, `sort_order` — **deprecated** in favor of `course_units`/`course_subtopics`; retained for SP-051b compat |
+| `course_units` | `id` (UUID PK), `course_id` FK, `title`, `sort_order` (SP-053a) |
+| `course_parts` | `id` (UUID PK), `unit_id` FK → `course_units`, `title`, `sort_order` (SP-053a.1) |
+| `course_subtopics` | `id` (UUID PK), `unit_id` FK → `course_units`, `part_id` nullable FK → `course_parts`, `title`, `sort_order` (SP-053a; `part_id` SP-053a.1) |
+| `document_unit_links` | Composite PK (`document_id`, `unit_id`) — M2M assignment (SP-053b) |
+| `document_part_links` | Composite PK (`document_id`, `part_id`) — M2M assignment schema only (SP-053a.1); API wiring SP-053b |
+| `document_subtopic_links` | Composite PK (`document_id`, `subtopic_id`) — M2M assignment (SP-053b) |
 | `documents` | `course_id`, `filename`, `doc_kind`, `status`, `page_count`, `extraction_quality` (JSONB), `topic_id` (nullable FK → `study_topics`) |
 | `chunk_parents` | Page-range parent text for hierarchical RAG |
 | `chunks` | Child chunks; `page`, `text`, `text_tsv` (generated tsvector), `metadata` JSONB |
@@ -732,6 +742,101 @@ User-defined topic buckets for **organized** mode. Additive routes; no retrieval
 
 **POST `/api/v1/courses/{course_id}/study-topics/bulk` (201, SP-051b):** body `{ "titles": ["Unit 1", "Unit 2", ...] }`. Creates topics with `sort_order` by index; sets `structure_mode=organized` when course was `corpus`.
 
+### Course structure (Phase S — SP-053a, SP-053a.1)
+
+Hierarchical units → optional parts → subtopics for Organized Study. **Preview endpoints do not persist.** **Confirm** replaces the entire tree for the course and sets `structure_mode=organized`. Document M2M links exist in schema but are **not wired** until SP-053b (`document_ids` always `[]` in GET).
+
+**GET `/api/v1/courses/{course_id}/structure` (200):**
+
+Nested when parts exist; flat subtopics when a unit has no parts:
+
+```json
+{
+  "course_id": "CHEM",
+  "units": [
+    {
+      "id": "uuid-string",
+      "title": "Unit 1 Thermodynamics",
+      "sort_order": 0,
+      "parts": [
+        {
+          "id": "uuid-string",
+          "title": "Laws of Thermodynamics",
+          "sort_order": 0,
+          "subtopics": [
+            { "id": "uuid-string", "title": "Heat", "sort_order": 0 }
+          ],
+          "document_ids": []
+        }
+      ],
+      "document_ids": []
+    },
+    {
+      "id": "uuid-string",
+      "title": "Unit 2 Atomic Structure",
+      "sort_order": 1,
+      "subtopics": [
+        { "id": "uuid-string", "title": "Orbitals", "sort_order": 0 }
+      ],
+      "document_ids": []
+    }
+  ]
+}
+```
+
+Units with parts omit top-level `subtopics`; units without parts omit `parts`. **404** unknown course. **200** with `"units": []` when no structure confirmed yet.
+
+**POST `/api/v1/courses/{course_id}/structure/import-paste` (200):** body `{ "text": string }`. Indent rules: **0** = unit title; **2** = part title (when any line in the unit uses indent ≥4) or flat subtopic; **4** = subtopic (comma-separated topics allowed on one line). Returns preview only:
+
+```json
+{
+  "preview": true,
+  "units": [
+    {
+      "title": "Unit 1 Thermodynamics",
+      "parts": [
+        { "title": "Laws", "subtopics": ["Heat", "Work"] }
+      ]
+    },
+    {
+      "title": "Unit 2 Atomic Structure",
+      "subtopics": ["Orbitals"]
+    }
+  ]
+}
+```
+
+**400** empty/invalid paste; **404** unknown course.
+
+**POST `/api/v1/courses/{course_id}/structure/import-syllabus` (200):** body optional `{ "document_id": "uuid" }`; when omitted uses `find_syllabus_document`. Calls Agent B syllabus structure parser (`parse_syllabus_course_structure` when present, else engineering syllabus parser). Accepts v2 parser shape with `parts[]` per unit when present. Returns:
+
+```json
+{
+  "preview": true,
+  "units": [
+    {
+      "title": "UNIT - I Introduction to Computer Networks",
+      "subtopics": ["Network models", "..."]
+    }
+  ],
+  "parse_warning": "optional string when parse is partial"
+}
+```
+
+**404** unknown course/document; **422** `syllabus_document_not_found` or `syllabus_parse_failed`.
+
+**POST `/api/v1/courses/{course_id}/structure/confirm` (200):** body `{ "units": [...] }` where each unit is either `{ "title", "subtopics": [string] }` (flat, backward compatible) or `{ "title", "parts": [{ "title", "subtopics": [string] }] }`. Idempotent replace (delete+insert). Sets `structure_mode=organized`. Returns GET structure shape.
+
+**400** invalid units payload; **404** unknown course.
+
+**Manual verify (CN engineering syllabus — 5 units):**
+
+```powershell
+curl.exe -X POST http://127.0.0.1:8002/api/v1/courses/CN/structure/import-syllabus -H "Content-Type: application/json" -d "{}"
+curl.exe -X POST http://127.0.0.1:8002/api/v1/courses/CN/structure/confirm -H "Content-Type: application/json" -d "{\"units\":[{\"title\":\"Unit 1\",\"subtopics\":[\"A\"]}]}"
+curl.exe http://127.0.0.1:8002/api/v1/courses/CN/structure
+```
+
 ### Course Map promotion (Phase S — SP-052, SP-052.1)
 
 **GET `/api/v1/courses/{course_id}/course-map-eligibility` (200):**
@@ -936,5 +1041,6 @@ Agent C may develop against a **fixture DB** populated by `scripts/ingest_ppl.ps
 | `tests/test_study_topics.py` | D | Study topics CRUD + structure_mode |
 | `tests/test_topic_scoped_retrieval.py` | D | topic_ids validation + structure-mode |
 | `tests/test_course_map_promotion.py` | D | Course Map eligibility + promote |
+| `tests/test_course_structure.py` | D | Course structure import/confirm APIs (SP-053a) |
 
 All tests: run from `apps/api` with Postgres test DB (`studypilot_test` on port 5433).

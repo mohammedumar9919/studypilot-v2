@@ -9,6 +9,7 @@ from app.services.pdf_extract import (
     _build_raw_outline_from_parsed,
     _finish_extracted_outline,
     _is_chapter_marker,
+    _parse_engineering_syllabus_structure,
     extract_outline_from_pdf,
     extract_outline_from_text_toc,
     is_page_bucket_outline,
@@ -404,6 +405,9 @@ def test_validate_accepts_real_section_titles() -> None:
 CN_ENGINEERING_FIXTURE = (
     Path(__file__).resolve().parent / "fixtures" / "syllabus" / "cn_engineering_roman_units.txt"
 )
+CN_ENGINEERING_LIVE_SHAPE_FIXTURE = (
+    Path(__file__).resolve().parent / "fixtures" / "syllabus" / "cn_engineering_live_shape.txt"
+)
 
 
 def _cn_engineering_syllabus_pages() -> list[PageText]:
@@ -415,6 +419,120 @@ def _cn_engineering_syllabus_pages() -> list[PageText]:
         PageText(page=1, text=page_one, char_count=len(page_one)),
         PageText(page=2, text=page_two, char_count=len(page_two)),
     ]
+
+
+def _cn_engineering_live_shape_pages() -> list[PageText]:
+    text = CN_ENGINEERING_LIVE_SHAPE_FIXTURE.read_text(encoding="utf-8")
+    split_at = text.index("UNIT - III")
+    page_one = text[:split_at].strip()
+    page_two = text[split_at:].strip()
+    return [
+        PageText(page=1, text=page_one, char_count=len(page_one)),
+        PageText(page=2, text=page_two, char_count=len(page_two)),
+    ]
+
+
+def test_indian_engineering_syllabus_live_shape_parts() -> None:
+    pages = _cn_engineering_live_shape_pages()
+    units = _parse_engineering_syllabus_structure(pages)
+    assert len(units) == 5
+    titles = [unit["unit_title"] for unit in units]
+    assert len(set(titles)) == 5
+    assert all(title.lower().startswith("unit ") for title in titles)
+
+    part_counts = [len(unit["parts"]) for unit in units if unit.get("parts")]
+    assert part_counts == [2, 3, 4, 2, 2]
+
+    unit_one_part_one = units[0]["parts"][0]["subtopic_titles"]
+    joined_part_one = " | ".join(unit_one_part_one).lower()
+    assert any("flow of networks" in topic for topic in joined_part_one.split(" | "))
+    assert any("william stalling" in topic.lower() for topic in unit_one_part_one)
+    assert any("frequency division" in topic.lower() for topic in unit_one_part_one)
+    assert not any(topic.strip().lower() == "flow of" for topic in unit_one_part_one)
+
+
+def test_indian_engineering_syllabus_roman_units() -> None:
+    pages = _cn_engineering_syllabus_pages()
+    units = _parse_engineering_syllabus_structure(pages)
+    assert len(units) == 5
+    titles = [unit["unit_title"] for unit in units]
+    assert len(set(titles)) == 5
+    joined = " ".join(title.lower() for title in titles)
+    assert "transport layer" in joined
+    assert "application layer" in joined
+    assert all(unit["subtopic_titles"] for unit in units)
+    assert all(len(topic) >= 12 for unit in units for topic in unit["subtopic_titles"])
+    assert all(len(unit["subtopic_titles"]) <= 8 for unit in units)
+
+
+def test_engineering_syllabus_inline_dhcp_continuation() -> None:
+    text = """UNIT - I Network Foundations
+
+Physical layer concepts and transmission media overview.
+
+UNIT - III Network Layer and Routing
+
+Internet control protocols:
+ARP, RARP, BOOTP and.
+DHCP.Network Routing Algorithms: Delivery, Forwarding and Unicast Routing protocol, Gateway protocols
+
+Routing Algorithms:
+Distance vector routing, link state routing, hierarchical routing schemes
+"""
+    pages = [PageText(page=1, text=text, char_count=len(text))]
+    units = _parse_engineering_syllabus_structure(pages)
+    assert len(units) == 2
+    parts = units[1]["parts"]
+    assert len(parts) == 2
+    icp = parts[0]
+    assert icp["part_title"] == "Internet control protocols"
+    joined_topics = " ".join(icp["subtopic_titles"]).lower()
+    assert "arp" in joined_topics
+    assert "bootp" in joined_topics
+    assert "dhcp" in joined_topics
+    assert "delivery" in joined_topics
+    assert not any(part["part_title"].startswith("DHCP") for part in parts)
+
+
+CN_ENGINEERING_LIVE_PDF = Path(
+    r"C:\Users\Owner\Downloads\WhatsApp Unknown 2026-06-09 at 2.11.11 AM\CN syllabus.pdf"
+)
+
+
+def test_live_cn_syllabus_pdf() -> None:
+    if not CN_ENGINEERING_LIVE_PDF.is_file():
+        return
+    from app.services.pdf_extract import extract_pdf
+
+    result = extract_pdf(CN_ENGINEERING_LIVE_PDF)
+    units = _parse_engineering_syllabus_structure(result.pages)
+    assert len(units) == 5
+    part_counts = [len(unit["parts"]) for unit in units if unit.get("parts")]
+    assert part_counts == [2, 3, 4, 2, 2]
+    unit_one_part_one = units[0]["parts"][0]["subtopic_titles"]
+    assert any("william stalling" in topic.lower() for topic in unit_one_part_one)
+
+
+def test_engineering_syllabus_structure_returns_empty_on_parse_fail() -> None:
+    pages = [PageText(page=1, text="Course overview\nNo unit headers.", char_count=35)]
+    assert _parse_engineering_syllabus_structure(pages) == []
+
+
+def test_engineering_syllabus_structure_supports_arabic_unit_header() -> None:
+    text = """Unit 1 Network Foundations
+
+Physical layer concepts and transmission media overview.
+
+Unit 2 Data Link Layer
+
+Framing techniques and error detection methods.
+"""
+    pages = [PageText(page=1, text=text, char_count=len(text))]
+    units = _parse_engineering_syllabus_structure(pages)
+    assert len(units) == 2
+    assert units[0]["unit_title"].startswith("Unit 1")
+    assert units[1]["unit_title"].startswith("Unit 2")
+    assert len(units[0]["subtopic_titles"]) >= 1
 
 
 def test_indian_engineering_syllabus_roman_units_no_pages() -> None:
