@@ -1,4 +1,4 @@
-"""Tests for course structure schema and APIs (SP-053a)."""
+"""Tests for course structure schema and APIs (SP-053a, SP-053b)."""
 
 from __future__ import annotations
 
@@ -16,11 +16,15 @@ from app.main import app
 from app.models import Course, Document
 from app.services.course_structure import (
     _preview_units_from_parser,
+    assign_subtopic_documents,
+    assign_unit_documents,
     confirm_course_structure,
+    expand_structure_scope_to_document_ids,
     get_course_structure,
     import_pasted_structure,
     import_syllabus_structure,
     parse_pasted_structure,
+    validate_structure_scope_ids,
 )
 from app.services.pdf_extract import ExtractionResult, PageText
 
@@ -407,3 +411,157 @@ def test_api_structure_404(db_session) -> None:
         assert response.status_code == 404
     finally:
         _clear_db_override()
+
+
+def _seed_structure_with_docs(db_session) -> tuple[uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID]:
+    db_session.add(Course(id="CHEM", name="Chemistry", structure_mode="organized"))
+    db_session.commit()
+    confirmed = confirm_course_structure(
+        db_session,
+        "CHEM",
+        [
+            {
+                "title": "Unit 1 Thermodynamics",
+                "parts": [{"title": "Laws", "subtopics": ["Heat", "Work"]}],
+            },
+        ],
+    )
+    assert confirmed is not None
+    unit_id = uuid.UUID(confirmed["units"][0]["id"])
+    part_id = uuid.UUID(confirmed["units"][0]["parts"][0]["id"])
+    subtopic_id = uuid.UUID(confirmed["units"][0]["parts"][0]["subtopics"][0]["id"])
+    unit_doc = uuid.uuid4()
+    part_doc = uuid.uuid4()
+    subtopic_doc = uuid.uuid4()
+    db_session.add_all(
+        [
+            Document(
+                id=unit_doc,
+                course_id="CHEM",
+                filename="unit-notes.pdf",
+                doc_kind="notes",
+                status="ready",
+            ),
+            Document(
+                id=part_doc,
+                course_id="CHEM",
+                filename="part-notes.pdf",
+                doc_kind="notes",
+                status="ready",
+            ),
+            Document(
+                id=subtopic_doc,
+                course_id="CHEM",
+                filename="subtopic-notes.pdf",
+                doc_kind="notes",
+                status="ready",
+            ),
+        ]
+    )
+    db_session.commit()
+    return unit_id, part_id, subtopic_id, unit_doc
+
+
+def test_assign_unit_documents_round_trip(db_session) -> None:
+    unit_id, _, _, unit_doc = _seed_structure_with_docs(db_session)
+
+    result = assign_unit_documents(db_session, "CHEM", unit_id, [unit_doc])
+    assert result is not None
+    assert result["units"][0]["document_ids"] == [str(unit_doc)]
+
+    fetched = get_course_structure(db_session, "CHEM")
+    assert fetched == result
+
+
+def test_assign_subtopic_documents_api_round_trip(db_session) -> None:
+    unit_id, part_id, subtopic_id, unit_doc = _seed_structure_with_docs(db_session)
+    subtopic_doc = uuid.uuid4()
+    db_session.add(
+        Document(
+            id=subtopic_doc,
+            course_id="CHEM",
+            filename="heat-notes.pdf",
+            doc_kind="notes",
+            status="ready",
+        )
+    )
+    db_session.commit()
+
+    _override_db(db_session)
+    try:
+        assign_unit = client.put(
+            f"/api/v1/courses/CHEM/structure/units/{unit_id}/documents",
+            json={"document_ids": [str(unit_doc)]},
+        )
+        assert assign_unit.status_code == 200
+        assert assign_unit.json()["units"][0]["document_ids"] == [str(unit_doc)]
+
+        assign_subtopic = client.put(
+            f"/api/v1/courses/CHEM/structure/subtopics/{subtopic_id}/documents",
+            json={"document_ids": [str(subtopic_doc)]},
+        )
+        assert assign_subtopic.status_code == 200
+        subtopics = assign_subtopic.json()["units"][0]["parts"][0]["subtopics"]
+        heat = next(item for item in subtopics if item["title"] == "Heat")
+        assert heat["document_ids"] == [str(subtopic_doc)]
+
+        fetched = client.get("/api/v1/courses/CHEM/structure")
+        assert fetched.status_code == 200
+        assert fetched.json()["units"][0]["parts"][0]["id"] == str(part_id)
+    finally:
+        _clear_db_override()
+
+
+def test_expand_structure_scope_inheritance(db_session) -> None:
+    unit_id, part_id, subtopic_id, unit_doc = _seed_structure_with_docs(db_session)
+    part_doc = uuid.uuid4()
+    subtopic_doc = uuid.uuid4()
+    db_session.add_all(
+        [
+            Document(
+                id=part_doc,
+                course_id="CHEM",
+                filename="part.pdf",
+                doc_kind="notes",
+                status="ready",
+            ),
+            Document(
+                id=subtopic_doc,
+                course_id="CHEM",
+                filename="subtopic.pdf",
+                doc_kind="notes",
+                status="ready",
+            ),
+        ]
+    )
+    db_session.commit()
+    assign_unit_documents(db_session, "CHEM", unit_id, [unit_doc])
+    from app.services.course_structure import assign_part_documents
+
+    assign_part_documents(db_session, "CHEM", part_id, [part_doc])
+    assign_subtopic_documents(db_session, "CHEM", subtopic_id, [subtopic_doc])
+
+    subtopic_scope = expand_structure_scope_to_document_ids(
+        db_session,
+        subtopic_ids=[subtopic_id],
+    )
+    assert set(subtopic_scope) == {unit_doc, part_doc, subtopic_doc}
+
+    part_scope = expand_structure_scope_to_document_ids(db_session, part_ids=[part_id])
+    assert set(part_scope) == {unit_doc, part_doc, subtopic_doc}
+
+    unit_scope = expand_structure_scope_to_document_ids(db_session, unit_ids=[unit_id])
+    assert set(unit_scope) == {unit_doc, part_doc, subtopic_doc}
+
+
+def test_validate_structure_scope_ids_rejects_empty(db_session) -> None:
+    _seed_structure_with_docs(db_session)
+    with pytest.raises(ValueError, match="unit_ids must not be empty"):
+        validate_structure_scope_ids(
+            db_session,
+            course_id="CHEM",
+            unit_ids=[],
+            part_ids=None,
+            subtopic_ids=None,
+            preset="study",
+        )

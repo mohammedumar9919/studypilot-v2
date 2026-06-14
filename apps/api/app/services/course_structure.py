@@ -9,8 +9,19 @@ from typing import Any
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.models import Course, CoursePart, CourseSubtopic, CourseUnit, Document
+from app.models import (
+    Course,
+    CoursePart,
+    CourseSubtopic,
+    CourseUnit,
+    Document,
+    DocumentPartLink,
+    DocumentSubtopicLink,
+    DocumentUnitLink,
+)
+from app.services.course_documents import VISIBLE_STATUSES
 from app.services.course_outline import find_syllabus_document
+from app.services.rag.retrieve import STUDY_DOC_KINDS
 
 
 def _split_comma_topics(line: str) -> list[str]:
@@ -323,10 +334,12 @@ def confirm_course_structure(
 
 
 def _serialize_subtopic(subtopic: CourseSubtopic) -> dict[str, Any]:
+    document_ids = sorted({str(link.document_id) for link in subtopic.document_links})
     return {
         "id": str(subtopic.id),
         "title": subtopic.title,
         "sort_order": subtopic.sort_order,
+        "document_ids": document_ids,
     }
 
 
@@ -374,9 +387,11 @@ def get_course_structure(session: Session, course_id: str) -> dict[str, Any] | N
         select(CourseUnit)
         .where(CourseUnit.course_id == course_id)
         .options(
-            selectinload(CourseUnit.parts).selectinload(CoursePart.subtopics),
+            selectinload(CourseUnit.parts)
+            .selectinload(CoursePart.subtopics)
+            .selectinload(CourseSubtopic.document_links),
             selectinload(CourseUnit.parts).selectinload(CoursePart.document_links),
-            selectinload(CourseUnit.subtopics),
+            selectinload(CourseUnit.subtopics).selectinload(CourseSubtopic.document_links),
             selectinload(CourseUnit.document_links),
         )
         .order_by(CourseUnit.sort_order, CourseUnit.title)
@@ -386,3 +401,265 @@ def get_course_structure(session: Session, course_id: str) -> dict[str, Any] | N
         "course_id": course_id,
         "units": [_serialize_unit(unit) for unit in units],
     }
+
+
+def _parse_document_id_list(raw_ids: Any, *, field_name: str) -> list[uuid.UUID]:
+    if raw_ids is None:
+        raw_ids = []
+    if not isinstance(raw_ids, list):
+        raise ValueError(f"{field_name} must be a list")
+    parsed: list[uuid.UUID] = []
+    for raw_id in raw_ids:
+        try:
+            parsed.append(uuid.UUID(str(raw_id)))
+        except ValueError as exc:
+            raise ValueError(f"Invalid {field_name} UUID: {raw_id}") from exc
+    return parsed
+
+
+def _validate_assignment_documents(
+    session: Session,
+    course_id: str,
+    document_ids: list[uuid.UUID],
+) -> None:
+    for doc_id in document_ids:
+        document = session.get(Document, doc_id)
+        if document is None or document.course_id != course_id:
+            raise ValueError(f"Document not found for course: {doc_id}")
+        if document.status not in VISIBLE_STATUSES:
+            raise ValueError(f"Document status not usable for assignment: {doc_id}")
+        if document.doc_kind not in STUDY_DOC_KINDS:
+            raise ValueError(f"Document doc_kind not allowed for structure assignment: {doc_id}")
+
+
+def assign_unit_documents(
+    session: Session,
+    course_id: str,
+    unit_id: uuid.UUID,
+    document_ids: list[uuid.UUID],
+) -> dict[str, Any] | None:
+    """Replace M2M document links for a course unit."""
+    unit = session.get(CourseUnit, unit_id)
+    if unit is None or unit.course_id != course_id:
+        return None
+    _validate_assignment_documents(session, course_id, document_ids)
+    session.execute(delete(DocumentUnitLink).where(DocumentUnitLink.unit_id == unit_id))
+    for doc_id in document_ids:
+        session.add(DocumentUnitLink(document_id=doc_id, unit_id=unit_id))
+    session.commit()
+    result = get_course_structure(session, course_id)
+    assert result is not None
+    return result
+
+
+def assign_part_documents(
+    session: Session,
+    course_id: str,
+    part_id: uuid.UUID,
+    document_ids: list[uuid.UUID],
+) -> dict[str, Any] | None:
+    """Replace M2M document links for a course part."""
+    part = session.get(CoursePart, part_id)
+    if part is None or part.unit.course_id != course_id:
+        return None
+    _validate_assignment_documents(session, course_id, document_ids)
+    session.execute(delete(DocumentPartLink).where(DocumentPartLink.part_id == part_id))
+    for doc_id in document_ids:
+        session.add(DocumentPartLink(document_id=doc_id, part_id=part_id))
+    session.commit()
+    result = get_course_structure(session, course_id)
+    assert result is not None
+    return result
+
+
+def assign_subtopic_documents(
+    session: Session,
+    course_id: str,
+    subtopic_id: uuid.UUID,
+    document_ids: list[uuid.UUID],
+) -> dict[str, Any] | None:
+    """Replace M2M document links for a course subtopic."""
+    subtopic = session.get(CourseSubtopic, subtopic_id)
+    if subtopic is None or subtopic.unit.course_id != course_id:
+        return None
+    _validate_assignment_documents(session, course_id, document_ids)
+    session.execute(
+        delete(DocumentSubtopicLink).where(DocumentSubtopicLink.subtopic_id == subtopic_id)
+    )
+    for doc_id in document_ids:
+        session.add(DocumentSubtopicLink(document_id=doc_id, subtopic_id=subtopic_id))
+    session.commit()
+    result = get_course_structure(session, course_id)
+    assert result is not None
+    return result
+
+
+def _load_unit_with_links(session: Session, unit_id: uuid.UUID) -> CourseUnit | None:
+    stmt = (
+        select(CourseUnit)
+        .where(CourseUnit.id == unit_id)
+        .options(
+            selectinload(CourseUnit.document_links),
+            selectinload(CourseUnit.parts)
+            .selectinload(CoursePart.document_links),
+            selectinload(CourseUnit.parts)
+            .selectinload(CoursePart.subtopics)
+            .selectinload(CourseSubtopic.document_links),
+            selectinload(CourseUnit.subtopics).selectinload(CourseSubtopic.document_links),
+        )
+    )
+    return session.scalars(stmt).first()
+
+
+def _load_part_with_links(session: Session, part_id: uuid.UUID) -> CoursePart | None:
+    stmt = (
+        select(CoursePart)
+        .where(CoursePart.id == part_id)
+        .options(
+            selectinload(CoursePart.document_links),
+            selectinload(CoursePart.unit).selectinload(CourseUnit.document_links),
+            selectinload(CoursePart.subtopics).selectinload(CourseSubtopic.document_links),
+        )
+    )
+    return session.scalars(stmt).first()
+
+
+def _load_subtopic_with_links(session: Session, subtopic_id: uuid.UUID) -> CourseSubtopic | None:
+    stmt = (
+        select(CourseSubtopic)
+        .where(CourseSubtopic.id == subtopic_id)
+        .options(
+            selectinload(CourseSubtopic.document_links),
+            selectinload(CourseSubtopic.part).selectinload(CoursePart.document_links),
+            selectinload(CourseSubtopic.unit).selectinload(CourseUnit.document_links),
+        )
+    )
+    return session.scalars(stmt).first()
+
+
+def _collect_document_ids_for_units(
+    session: Session,
+    unit_ids: list[uuid.UUID],
+) -> set[uuid.UUID]:
+    doc_ids: set[uuid.UUID] = set()
+    for unit_id in unit_ids:
+        unit = _load_unit_with_links(session, unit_id)
+        if unit is None:
+            continue
+        doc_ids.update(link.document_id for link in unit.document_links)
+        for part in unit.parts:
+            doc_ids.update(link.document_id for link in part.document_links)
+            for subtopic in part.subtopics:
+                doc_ids.update(link.document_id for link in subtopic.document_links)
+        for subtopic in unit.subtopics:
+            if subtopic.part_id is None:
+                doc_ids.update(link.document_id for link in subtopic.document_links)
+    return doc_ids
+
+
+def _collect_document_ids_for_parts(
+    session: Session,
+    part_ids: list[uuid.UUID],
+) -> set[uuid.UUID]:
+    doc_ids: set[uuid.UUID] = set()
+    for part_id in part_ids:
+        part = _load_part_with_links(session, part_id)
+        if part is None:
+            continue
+        doc_ids.update(link.document_id for link in part.document_links)
+        doc_ids.update(link.document_id for link in part.unit.document_links)
+        for subtopic in part.subtopics:
+            doc_ids.update(link.document_id for link in subtopic.document_links)
+    return doc_ids
+
+
+def _collect_document_ids_for_subtopics(
+    session: Session,
+    subtopic_ids: list[uuid.UUID],
+) -> set[uuid.UUID]:
+    doc_ids: set[uuid.UUID] = set()
+    for subtopic_id in subtopic_ids:
+        subtopic = _load_subtopic_with_links(session, subtopic_id)
+        if subtopic is None:
+            continue
+        doc_ids.update(link.document_id for link in subtopic.document_links)
+        if subtopic.part is not None:
+            doc_ids.update(link.document_id for link in subtopic.part.document_links)
+        doc_ids.update(link.document_id for link in subtopic.unit.document_links)
+    return doc_ids
+
+
+def expand_structure_scope_to_document_ids(
+    session: Session,
+    *,
+    unit_ids: list[uuid.UUID] | None = None,
+    part_ids: list[uuid.UUID] | None = None,
+    subtopic_ids: list[uuid.UUID] | None = None,
+) -> list[uuid.UUID]:
+    """Expand structure node ids to document ids with parent/child inheritance."""
+    doc_ids: set[uuid.UUID] = set()
+    if unit_ids:
+        doc_ids.update(_collect_document_ids_for_units(session, unit_ids))
+    if part_ids:
+        doc_ids.update(_collect_document_ids_for_parts(session, part_ids))
+    if subtopic_ids:
+        doc_ids.update(_collect_document_ids_for_subtopics(session, subtopic_ids))
+    return sorted(doc_ids)
+
+
+def validate_structure_scope_ids(
+    session: Session,
+    *,
+    course_id: str,
+    unit_ids: list[str] | None,
+    part_ids: list[str] | None,
+    subtopic_ids: list[str] | None,
+    preset: str,
+) -> list[uuid.UUID]:
+    """Parse structure scope ids and expand to document_ids for retrieval. Raises ValueError (400)."""
+    from app.services.study_topics import STUDY_PRESETS
+
+    if preset not in STUDY_PRESETS:
+        raise ValueError(f"structure scope not allowed for preset {preset}")
+
+    has_unit = unit_ids is not None
+    has_part = part_ids is not None
+    has_subtopic = subtopic_ids is not None
+    if not has_unit and not has_part and not has_subtopic:
+        return []
+
+    if has_unit and not unit_ids:
+        raise ValueError("unit_ids must not be empty when provided")
+    if has_part and not part_ids:
+        raise ValueError("part_ids must not be empty when provided")
+    if has_subtopic and not subtopic_ids:
+        raise ValueError("subtopic_ids must not be empty when provided")
+
+    parsed_units = _parse_document_id_list(unit_ids or [], field_name="unit_ids")
+    parsed_parts = _parse_document_id_list(part_ids or [], field_name="part_ids")
+    parsed_subtopics = _parse_document_id_list(subtopic_ids or [], field_name="subtopic_ids")
+
+    for unit_id in parsed_units:
+        unit = session.get(CourseUnit, unit_id)
+        if unit is None or unit.course_id != course_id:
+            raise ValueError(f"Course unit not found for course: {unit_id}")
+
+    for part_id in parsed_parts:
+        part = session.get(CoursePart, part_id)
+        if part is None or part.unit.course_id != course_id:
+            raise ValueError(f"Course part not found for course: {part_id}")
+
+    for subtopic_id in parsed_subtopics:
+        subtopic = session.get(CourseSubtopic, subtopic_id)
+        if subtopic is None or subtopic.unit.course_id != course_id:
+            raise ValueError(f"Course subtopic not found for course: {subtopic_id}")
+
+    document_ids = expand_structure_scope_to_document_ids(
+        session,
+        unit_ids=parsed_units or None,
+        part_ids=parsed_parts or None,
+        subtopic_ids=parsed_subtopics or None,
+    )
+    if not document_ids:
+        raise ValueError("structure scope matched no assigned documents")
+    return document_ids

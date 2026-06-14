@@ -11,12 +11,12 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import SessionLocal
-from app.models import ChunkParent
+from app.models import ChunkParent, ExamQuestion
 from app.services.embedder import embed_texts
 from app.services.pdf_extract import DocumentOutline, load_outline
 
@@ -24,6 +24,9 @@ STUDY_DOC_KINDS = ("notes", "textbook", "syllabus")
 EXAM_DOC_KINDS = ("past_paper",)
 
 _current_course_id: ContextVar[str | None] = ContextVar("retrieval_course_id", default=None)
+_exam_question_hits: ContextVar[list[dict[str, Any]] | None] = ContextVar(
+    "exam_question_hits", default=None
+)
 _dynamic_hints_cache: dict[str, tuple[dict[str, tuple[str, ...]], dict[str, frozenset[str]], tuple[tuple[str, int, int], ...]]] = {}
 
 
@@ -100,6 +103,22 @@ class _ParentMeta:
     text: str
     page_start: int
     page_end: int
+
+
+@dataclass
+class _ExamQuestionHit:
+    id: uuid.UUID
+    document_id: uuid.UUID
+    page: int
+    part: str | None
+    question_number: str | None
+    prompt_text: str
+    bm25_score: float | None = None
+    vector_score: float | None = None
+
+    @property
+    def match_score(self) -> float:
+        return max(self.bm25_score or 0.0, self.vector_score or 0.0)
 
 
 @dataclass
@@ -414,6 +433,31 @@ def _doc_filter_sql(doc_kinds: tuple[str, ...]) -> str:
     return f"d.doc_kind IN ({kinds}) AND d.status = 'ready'"
 
 
+def _document_ids_filter_sql(
+    document_ids: list[uuid.UUID] | None,
+    *,
+    column: str = "c.document_id",
+) -> str:
+    if not document_ids:
+        return ""
+    ids = ", ".join(f"'{doc_id}'" for doc_id in document_ids)
+    return f" AND {column} IN ({ids})"
+
+
+def _retrieval_scope_filter_sql(
+    *,
+    document_ids: list[uuid.UUID] | None = None,
+    topic_ids: list[uuid.UUID] | None = None,
+    document_column: str = "c.document_id",
+    topic_column: str = "d.topic_id",
+) -> str:
+    clause = _document_ids_filter_sql(document_ids, column=document_column)
+    if topic_ids:
+        ids = ", ".join(f"'{topic_id}'" for topic_id in topic_ids)
+        clause += f" AND {topic_column} IN ({ids})"
+    return clause
+
+
 def _study_doc_filter_sql() -> str:
     return _doc_filter_sql(STUDY_DOC_KINDS)
 
@@ -594,8 +638,11 @@ def _vector_search(
     query_vec: list[float],
     limit: int,
     doc_kinds: tuple[str, ...] = STUDY_DOC_KINDS,
+    document_ids: list[uuid.UUID] | None = None,
+    topic_ids: list[uuid.UUID] | None = None,
 ) -> list[dict[str, Any]]:
     doc_filter = _doc_filter_sql(doc_kinds)
+    scope_filter = _retrieval_scope_filter_sql(document_ids=document_ids, topic_ids=topic_ids)
     sql = text(
         f"""
         SELECT
@@ -612,7 +659,7 @@ def _vector_search(
         JOIN documents d ON d.id = c.document_id
         JOIN chunk_embeddings ce ON ce.chunk_id = c.id
         WHERE d.course_id = :course_id
-          AND {doc_filter}
+          AND {doc_filter}{scope_filter}
         ORDER BY ce.embedding <=> CAST(:query_vec AS vector)
         LIMIT :limit
         """
@@ -632,8 +679,11 @@ def _bm25_search(
     question: str,
     limit: int,
     doc_kinds: tuple[str, ...] = STUDY_DOC_KINDS,
+    document_ids: list[uuid.UUID] | None = None,
+    topic_ids: list[uuid.UUID] | None = None,
 ) -> list[dict[str, Any]]:
     doc_filter = _doc_filter_sql(doc_kinds)
+    scope_filter = _retrieval_scope_filter_sql(document_ids=document_ids, topic_ids=topic_ids)
     sql = text(
         f"""
         SELECT
@@ -649,7 +699,7 @@ def _bm25_search(
         FROM chunks c
         JOIN documents d ON d.id = c.document_id
         WHERE d.course_id = :course_id
-          AND {doc_filter}
+          AND {doc_filter}{scope_filter}
           AND c.text_tsv @@ websearch_to_tsquery('english', :question)
         ORDER BY bm25_score DESC
         LIMIT :limit
@@ -669,6 +719,8 @@ def _metadata_toc_search(
     terms: list[str],
     limit: int,
     doc_kinds: tuple[str, ...] = STUDY_DOC_KINDS,
+    document_ids: list[uuid.UUID] | None = None,
+    topic_ids: list[uuid.UUID] | None = None,
 ) -> list[dict[str, Any]]:
     """BM25 over chunk outline metadata (section_title + toc_path)."""
     tsquery = _to_tsquery(terms)
@@ -676,6 +728,7 @@ def _metadata_toc_search(
         return []
 
     doc_filter = _doc_filter_sql(doc_kinds)
+    scope_filter = _retrieval_scope_filter_sql(document_ids=document_ids, topic_ids=topic_ids)
     sql = text(
         f"""
         SELECT
@@ -699,7 +752,7 @@ def _metadata_toc_search(
         FROM chunks c
         JOIN documents d ON d.id = c.document_id
         WHERE d.course_id = :course_id
-          AND {doc_filter}
+          AND {doc_filter}{scope_filter}
           AND to_tsvector(
                 'english',
                 coalesce(c.metadata->>'section_title', '')
@@ -724,6 +777,8 @@ def _bm25_and_terms_search(
     terms: list[str],
     limit: int,
     doc_kinds: tuple[str, ...] = STUDY_DOC_KINDS,
+    document_ids: list[uuid.UUID] | None = None,
+    topic_ids: list[uuid.UUID] | None = None,
 ) -> list[dict[str, Any]]:
     """BM25 requiring all terms (AND) — surfaces definition-style co-occurrence."""
     tsquery = _to_tsquery_and(terms)
@@ -731,6 +786,7 @@ def _bm25_and_terms_search(
         return []
 
     doc_filter = _doc_filter_sql(doc_kinds)
+    scope_filter = _retrieval_scope_filter_sql(document_ids=document_ids, topic_ids=topic_ids)
     sql = text(
         f"""
         SELECT
@@ -746,7 +802,7 @@ def _bm25_and_terms_search(
         FROM chunks c
         JOIN documents d ON d.id = c.document_id
         WHERE d.course_id = :course_id
-          AND {doc_filter}
+          AND {doc_filter}{scope_filter}
           AND c.text_tsv @@ to_tsquery('english', :tsquery)
         ORDER BY bm25_score DESC
         LIMIT :limit
@@ -768,6 +824,8 @@ def _bm25_page_bounded_and_search(
     page_end: int,
     limit: int,
     doc_kinds: tuple[str, ...] = STUDY_DOC_KINDS,
+    document_ids: list[uuid.UUID] | None = None,
+    topic_ids: list[uuid.UUID] | None = None,
 ) -> list[dict[str, Any]]:
     """AND BM25 within a page window (soft section prior for early-unit definition hits)."""
     tsquery = _to_tsquery_and(terms)
@@ -775,6 +833,7 @@ def _bm25_page_bounded_and_search(
         return []
 
     doc_filter = _doc_filter_sql(doc_kinds)
+    scope_filter = _retrieval_scope_filter_sql(document_ids=document_ids, topic_ids=topic_ids)
     sql = text(
         f"""
         SELECT
@@ -790,7 +849,7 @@ def _bm25_page_bounded_and_search(
         FROM chunks c
         JOIN documents d ON d.id = c.document_id
         WHERE d.course_id = :course_id
-          AND {doc_filter}
+          AND {doc_filter}{scope_filter}
           AND c.page >= :page_start
           AND c.page <= :page_end
           AND c.text_tsv @@ to_tsquery('english', :tsquery)
@@ -818,12 +877,15 @@ def _bm25_focus_search(
     terms: list[str],
     limit: int,
     doc_kinds: tuple[str, ...] = STUDY_DOC_KINDS,
+    document_ids: list[uuid.UUID] | None = None,
+    topic_ids: list[uuid.UUID] | None = None,
 ) -> list[dict[str, Any]]:
     tsquery = _to_tsquery(terms)
     if not tsquery:
         return []
 
     doc_filter = _doc_filter_sql(doc_kinds)
+    scope_filter = _retrieval_scope_filter_sql(document_ids=document_ids, topic_ids=topic_ids)
     sql = text(
         f"""
         SELECT
@@ -839,7 +901,7 @@ def _bm25_focus_search(
         FROM chunks c
         JOIN documents d ON d.id = c.document_id
         WHERE d.course_id = :course_id
-          AND {doc_filter}
+          AND {doc_filter}{scope_filter}
           AND c.text_tsv @@ to_tsquery('english', :tsquery)
         ORDER BY bm25_score DESC
         LIMIT :limit
@@ -962,15 +1024,242 @@ def _rows_to_chunks(
     return chunks
 
 
-def fetch_hybrid_candidates(
+def _count_exam_questions(
+    session: Session,
+    course_id: str,
+    document_ids: list[uuid.UUID] | None = None,
+) -> int:
+    stmt = select(func.count(ExamQuestion.id)).where(ExamQuestion.course_id == course_id)
+    if document_ids:
+        stmt = stmt.where(ExamQuestion.document_id.in_(document_ids))
+    return session.scalar(stmt) or 0
+
+
+def get_exam_question_hits() -> list[dict[str, Any]] | None:
+    """Parsed exam_question matches from the latest fetch_exam_candidates call."""
+    return _exam_question_hits.get()
+
+
+def _cosine_similarity(left: list[float], right: list[float]) -> float:
+    dot = sum(a * b for a, b in zip(left, right))
+    left_norm = sum(a * a for a in left) ** 0.5
+    right_norm = sum(b * b for b in right) ** 0.5
+    if left_norm == 0 or right_norm == 0:
+        return 0.0
+    return dot / (left_norm * right_norm)
+
+
+def _exam_question_hit_payload(hit: _ExamQuestionHit) -> dict[str, Any]:
+    snippet = hit.prompt_text.strip()
+    if len(snippet) > 160:
+        snippet = snippet[:157] + "..."
+    return {
+        "id": str(hit.id),
+        "page": hit.page,
+        "part": hit.part,
+        "question_number": hit.question_number,
+        "prompt_snippet": snippet,
+    }
+
+
+def _exam_question_bm25_search(
     session: Session,
     *,
     course_id: str,
     question: str,
-    doc_kinds: tuple[str, ...] | None = None,
-) -> list[RetrievedChunk]:
-    """Run vector + BM25 search and RRF-fuse to candidate chunks."""
-    kinds = doc_kinds if doc_kinds is not None else STUDY_DOC_KINDS
+    limit: int,
+    document_ids: list[uuid.UUID] | None = None,
+) -> list[_ExamQuestionHit]:
+    doc_ids_filter = _document_ids_filter_sql(document_ids, column="eq.document_id")
+    sql = text(
+        f"""
+        SELECT
+            eq.id,
+            eq.document_id,
+            eq.page,
+            eq.part,
+            eq.question_number,
+            eq.prompt_text,
+            ts_rank_cd(
+                to_tsvector('english', eq.prompt_text),
+                websearch_to_tsquery('english', :question)
+            ) AS bm25_score
+        FROM exam_questions eq
+        WHERE eq.course_id = :course_id{doc_ids_filter}
+          AND to_tsvector('english', eq.prompt_text) @@ websearch_to_tsquery('english', :question)
+        ORDER BY bm25_score DESC
+        LIMIT :limit
+        """
+    )
+    rows = session.execute(
+        sql,
+        {"course_id": course_id, "question": question, "limit": limit},
+    ).mappings()
+    hits: list[_ExamQuestionHit] = []
+    for row in rows:
+        hits.append(
+            _ExamQuestionHit(
+                id=row["id"],
+                document_id=row["document_id"],
+                page=int(row["page"]),
+                part=row.get("part"),
+                question_number=row.get("question_number"),
+                prompt_text=str(row["prompt_text"]),
+                bm25_score=float(row["bm25_score"]) if row.get("bm25_score") is not None else None,
+            )
+        )
+    return hits
+
+
+def _exam_question_vector_search(
+    session: Session,
+    *,
+    course_id: str,
+    query_vec: list[float],
+    limit: int,
+    document_ids: list[uuid.UUID] | None = None,
+) -> list[_ExamQuestionHit]:
+    stmt = select(ExamQuestion).where(ExamQuestion.course_id == course_id)
+    if document_ids:
+        stmt = stmt.where(ExamQuestion.document_id.in_(document_ids))
+    questions = list(session.scalars(stmt).all())
+    if not questions:
+        return []
+
+    embeddings = embed_texts([question.prompt_text for question in questions], is_query=False)
+    scored: list[tuple[_ExamQuestionHit, float]] = []
+    for question, embedding in zip(questions, embeddings, strict=True):
+        score = _cosine_similarity(query_vec, embedding)
+        if score <= 0:
+            continue
+        scored.append(
+            (
+                _ExamQuestionHit(
+                    id=question.id,
+                    document_id=question.document_id,
+                    page=question.page,
+                    part=question.part,
+                    question_number=question.question_number,
+                    prompt_text=question.prompt_text,
+                    vector_score=score,
+                ),
+                score,
+            )
+        )
+    scored.sort(key=lambda item: item[1], reverse=True)
+    return [hit for hit, _score in scored[:limit]]
+
+
+def _merge_exam_question_hits(
+    *hit_lists: list[_ExamQuestionHit],
+) -> list[_ExamQuestionHit]:
+    merged: dict[uuid.UUID, _ExamQuestionHit] = {}
+    for hits in hit_lists:
+        for hit in hits:
+            existing = merged.get(hit.id)
+            if existing is None:
+                merged[hit.id] = hit
+                continue
+            merged[hit.id] = _ExamQuestionHit(
+                id=hit.id,
+                document_id=hit.document_id,
+                page=hit.page,
+                part=hit.part or existing.part,
+                question_number=hit.question_number or existing.question_number,
+                prompt_text=hit.prompt_text,
+                bm25_score=max(existing.bm25_score or 0.0, hit.bm25_score or 0.0) or None,
+                vector_score=max(existing.vector_score or 0.0, hit.vector_score or 0.0) or None,
+            )
+    return sorted(merged.values(), key=lambda hit: hit.match_score, reverse=True)
+
+
+def _search_exam_questions(
+    session: Session,
+    *,
+    course_id: str,
+    question: str,
+    query_vec: list[float],
+    limit: int = 20,
+    document_ids: list[uuid.UUID] | None = None,
+) -> list[_ExamQuestionHit]:
+    bm25_hits = _exam_question_bm25_search(
+        session,
+        course_id=course_id,
+        question=question,
+        limit=limit,
+        document_ids=document_ids,
+    )
+    vector_hits = _exam_question_vector_search(
+        session,
+        course_id=course_id,
+        query_vec=query_vec,
+        limit=limit,
+        document_ids=document_ids,
+    )
+    return _merge_exam_question_hits(bm25_hits, vector_hits)[:limit]
+
+
+def _chunk_rows_for_exam_questions(
+    session: Session,
+    hits: list[_ExamQuestionHit],
+) -> list[dict[str, Any]]:
+    """Map parsed exam questions to past_paper chunk rows for RRF fusion."""
+    if not hits:
+        return []
+
+    sql = text(
+        """
+        SELECT
+            c.id AS chunk_id,
+            c.document_id,
+            c.parent_id,
+            c.page,
+            c.text,
+            c.metadata AS chunk_metadata,
+            d.filename,
+            d.doc_kind,
+            :bm25_score AS bm25_score
+        FROM chunks c
+        JOIN documents d ON d.id = c.document_id
+        WHERE c.document_id = :document_id
+          AND c.page = :page
+          AND d.doc_kind = 'past_paper'
+          AND d.status = 'ready'
+        ORDER BY c.chunk_index
+        LIMIT 1
+        """
+    )
+    rows: list[dict[str, Any]] = []
+    seen_chunks: set[uuid.UUID] = set()
+    for hit in hits:
+        row = session.execute(
+            sql,
+            {
+                "document_id": hit.document_id,
+                "page": hit.page,
+                "bm25_score": hit.match_score,
+            },
+        ).mappings().first()
+        if row is None:
+            continue
+        chunk_id = row["chunk_id"]
+        if chunk_id in seen_chunks:
+            continue
+        seen_chunks.add(chunk_id)
+        rows.append(dict(row))
+    return rows
+
+
+def _hybrid_fused_rows(
+    session: Session,
+    *,
+    course_id: str,
+    question: str,
+    doc_kinds: tuple[str, ...],
+    extra_lists: list[tuple[list[dict[str, Any]], float]] | None = None,
+    document_ids: list[uuid.UUID] | None = None,
+    topic_ids: list[uuid.UUID] | None = None,
+) -> tuple[list[dict[str, Any]], list[str]]:
     terms = focus_terms(question)
     lexical = _is_lexical_heavy(question)
     vector_weight = settings.hybrid_vector_weight
@@ -990,30 +1279,38 @@ def fetch_hybrid_candidates(
         course_id=course_id,
         query_vec=query_vec,
         limit=settings.retrieval_vector_top_k,
-        doc_kinds=kinds,
+        doc_kinds=doc_kinds,
+        document_ids=document_ids,
+        topic_ids=topic_ids,
     )
     bm25_hits = _bm25_search(
         session,
         course_id=course_id,
         question=question,
         limit=settings.retrieval_bm25_top_k,
-        doc_kinds=kinds,
+        doc_kinds=doc_kinds,
+        document_ids=document_ids,
+        topic_ids=topic_ids,
     )
     focus_hits = _bm25_focus_search(
         session,
         course_id=course_id,
         terms=terms,
         limit=settings.retrieval_bm25_top_k,
-        doc_kinds=kinds,
+        doc_kinds=doc_kinds,
+        document_ids=document_ids,
+        topic_ids=topic_ids,
     )
     metadata_hits = _metadata_toc_search(
         session,
         course_id=course_id,
         terms=terms,
         limit=settings.retrieval_bm25_top_k,
-        doc_kinds=kinds,
+        doc_kinds=doc_kinds,
+        document_ids=document_ids,
+        topic_ids=topic_ids,
     )
-    extra: list[tuple[list[dict[str, Any]], float]] = []
+    extra: list[tuple[list[dict[str, Any]], float]] = list(extra_lists or [])
     if focus_hits:
         extra.append((focus_hits, bm25_weight * 1.1))
     if metadata_hits:
@@ -1024,7 +1321,8 @@ def fetch_hybrid_candidates(
             course_id=course_id,
             terms=["evaluation", "criteria"],
             limit=settings.retrieval_bm25_top_k,
-            doc_kinds=kinds,
+            doc_kinds=doc_kinds,
+            document_ids=document_ids,
         )
         if eval_and_hits:
             extra.append((eval_and_hits, bm25_weight * 1.35))
@@ -1035,7 +1333,8 @@ def fetch_hybrid_candidates(
             page_start=3,
             page_end=9,
             limit=settings.retrieval_bm25_top_k,
-            doc_kinds=kinds,
+            doc_kinds=doc_kinds,
+            document_ids=document_ids,
         )
         if early_eval_hits:
             extra.append((early_eval_hits, bm25_weight * 1.5))
@@ -1044,7 +1343,8 @@ def fetch_hybrid_candidates(
             course_id=course_id,
             terms=["preliminary", "evaluation"],
             limit=settings.retrieval_bm25_top_k,
-            doc_kinds=kinds,
+            doc_kinds=doc_kinds,
+            document_ids=document_ids,
         )
         if prelim_meta:
             extra.append((prelim_meta, bm25_weight * 0.9))
@@ -1058,6 +1358,28 @@ def fetch_hybrid_candidates(
         top_n=settings.rrf_output_top_k,
         extra_lists=extra,
     )
+    return fused, terms
+
+
+def fetch_hybrid_candidates(
+    session: Session,
+    *,
+    course_id: str,
+    question: str,
+    doc_kinds: tuple[str, ...] | None = None,
+    document_ids: list[uuid.UUID] | None = None,
+    topic_ids: list[uuid.UUID] | None = None,
+) -> list[RetrievedChunk]:
+    """Run vector + BM25 search and RRF-fuse to candidate chunks."""
+    kinds = doc_kinds if doc_kinds is not None else STUDY_DOC_KINDS
+    fused, terms = _hybrid_fused_rows(
+        session,
+        course_id=course_id,
+        question=question,
+        doc_kinds=kinds,
+        document_ids=document_ids,
+        topic_ids=topic_ids,
+    )
     return _rows_to_chunks(session, fused, terms=terms, question=question)
 
 
@@ -1066,14 +1388,43 @@ def fetch_exam_candidates(
     *,
     course_id: str,
     question: str,
+    document_ids: list[uuid.UUID] | None = None,
 ) -> list[RetrievedChunk]:
     """Hybrid retrieval limited to past_paper documents (exam preset)."""
-    return fetch_hybrid_candidates(
+    if _count_exam_questions(session, course_id, document_ids=document_ids) == 0:
+        _exam_question_hits.set(None)
+        return fetch_hybrid_candidates(
+            session,
+            course_id=course_id,
+            question=question,
+            doc_kinds=EXAM_DOC_KINDS,
+            document_ids=document_ids,
+        )
+
+    query_vec = embed_texts([question], is_query=True)[0]
+    question_hits = _search_exam_questions(
+        session,
+        course_id=course_id,
+        question=question,
+        query_vec=query_vec,
+        document_ids=document_ids,
+    )
+    _exam_question_hits.set([_exam_question_hit_payload(hit) for hit in question_hits[:10]])
+
+    question_rows = _chunk_rows_for_exam_questions(session, question_hits)
+    extra_lists: list[tuple[list[dict[str, Any]], float]] | None = None
+    if question_rows:
+        extra_lists = [(question_rows, settings.hybrid_bm25_weight * 1.35)]
+
+    fused, terms = _hybrid_fused_rows(
         session,
         course_id=course_id,
         question=question,
         doc_kinds=EXAM_DOC_KINDS,
+        extra_lists=extra_lists,
+        document_ids=document_ids,
     )
+    return _rows_to_chunks(session, fused, terms=terms, question=question)
 
 
 def retrieve_study(
