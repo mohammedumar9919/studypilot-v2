@@ -113,6 +113,23 @@ _ENGINEERING_FOOTER_PROGRAM_RE = re.compile(
 _ENGINEERING_EMBEDDED_PART_HEADING_RE = re.compile(
     r"(?<=[.,])\s*([A-Z][a-z]+(?:\s+[A-Za-z]+){0,7}):\s+",
 )
+_SPURIOUS_EMBEDDED_PART_WORDS = frozenset(
+    {
+        "analysis",
+        "classification",
+        "clustering",
+        "estimation",
+        "forecasting",
+        "inference",
+        "learning",
+        "modeling",
+        "optimization",
+        "prediction",
+        "regression",
+        "statistical",
+        "visualization",
+    }
+)
 
 
 class EngineeringSyllabusPart(TypedDict):
@@ -1643,8 +1660,17 @@ def _raw_outline_from_text_toc(
     return outline
 
 
+def _normalize_engineering_roman_token(token: str) -> str:
+    """Repair common OCR mistakes in Roman unit index tokens."""
+    clean = token.strip().upper().replace("L", "I")
+    for ocr_error, repaired in (("IIL", "III"), ("IL", "II"), ("II1", "III")):
+        if clean == ocr_error:
+            return repaired
+    return clean
+
+
 def _parse_engineering_unit_index(token: str) -> int | None:
-    clean = token.strip().upper()
+    clean = _normalize_engineering_roman_token(token)
     if clean.isdigit():
         value = int(clean)
         return value if value >= 1 else None
@@ -1682,7 +1708,8 @@ def _match_engineering_syllabus_unit_header(
         unit_index = _parse_engineering_unit_index(index_token)
         rest = match.group("rest").strip(" -–:")
         rest = _SYLLABUS_TOC_PAGE_SUFFIX_RE.sub("", rest).strip()
-        title = f"Unit {index_token} {rest}".strip() if rest else f"Unit {index_token}"
+        normalized_token = _normalize_engineering_roman_token(index_token)
+        title = f"Unit {normalized_token} {rest}".strip() if rest else f"Unit {normalized_token}"
         return unit_index, title
     return None
 
@@ -1722,10 +1749,18 @@ def _merge_wrapped_pdf_lines(lines: list[str]) -> list[str]:
     return merged
 
 
+def _is_orphan_syllabus_fragment_line(line: str) -> bool:
+    return bool(re.match(r"^[a-z]{1,3},\s", line.strip()))
+
+
 def _should_merge_wrapped_pdf_line(previous: str, nxt: str) -> bool:
     if _match_engineering_structure_unit_header(nxt) is not None:
         return False
     if _is_engineering_syllabus_part_heading_line(nxt):
+        return False
+    if _is_orphan_syllabus_fragment_line(nxt):
+        return False
+    if previous.rstrip().endswith(".") and _is_orphan_syllabus_fragment_line(nxt):
         return False
     if previous.count("(") > previous.count(")"):
         return True
@@ -1734,7 +1769,14 @@ def _should_merge_wrapped_pdf_line(previous: str, nxt: str) -> bool:
     if previous.endswith("-") and nxt and nxt[0].isalpha():
         return True
     if nxt and nxt[0].islower():
-        return True
+        last_token = previous.rsplit(None, 1)[-1] if previous.split() else ""
+        if not re.search(r"[.:;!?)]$", previous.rstrip()):
+            if (
+                previous.endswith("-")
+                or ("-" in last_token)
+                or (last_token.isalpha() and len(last_token) >= 4)
+            ):
+                return True
     if previous.endswith(","):
         return True
     if previous.endswith(" and") or previous.endswith(" and."):
@@ -1742,9 +1784,70 @@ def _should_merge_wrapped_pdf_line(previous: str, nxt: str) -> bool:
     trailing = previous.rsplit(None, 1)[-1].lower()
     if trailing in {"of", "and", "or", "the", "a", "an", "to", "in", "for", "with", "flow"}:
         return True
+    if not re.search(r"[.:;!?)]$", previous.rstrip()):
+        last_token_lower = previous.rsplit(None, 1)[-1].lower() if previous.split() else ""
+        if (
+            last_token_lower in {"multiple", "simple", "basic", "advanced", "general"}
+            and nxt
+            and nxt[0].isupper()
+        ):
+            return True
+    if ":" in previous and nxt and nxt.split():
+        first_word = re.sub(r"[^A-Za-z].*$", "", nxt.split()[0])
+        prev_stripped = previous.rstrip()
+        if (
+            first_word
+            and first_word[0].isupper()
+            and first_word.isalpha()
+            and (
+                prev_stripped.endswith("-")
+                or bool(re.search(r"\bK-Means$", prev_stripped, re.I))
+            )
+        ):
+            return True
+    if (
+        "," in previous
+        and not previous.rstrip().endswith(",")
+        and nxt.split()
+        and nxt.split()[0][0].isupper()
+    ):
+        return False
     if not re.search(r"[.:;!?)]$", previous) and len(nxt.split()) <= 6:
         return True
     return False
+
+
+def _cleanup_syllabus_topic(title: str) -> str:
+    return re.sub(r"\.\s+s$", "", title.strip()).strip()
+
+
+def _looks_like_comma_separated_topic_list(text: str) -> bool:
+    """True when text looks like a flat comma-separated syllabus topic list."""
+    segments = [segment.strip() for segment in text.split(",") if segment.strip()]
+    if len(segments) < 3:
+        return False
+    if any(segment.lower().startswith("and ") for segment in segments):
+        return False
+    short_segments = sum(
+        1 for segment in segments if len(segment) <= 80 and segment.count(".") <= 1
+    )
+    return short_segments / len(segments) >= 0.7
+
+
+def _flat_syllabus_topics(merged_lines: list[str]) -> list[str]:
+    topics: list[str] = []
+    for line in merged_lines:
+        clean = line.strip()
+        if not clean:
+            continue
+        if _looks_like_comma_separated_topic_list(clean):
+            topics.extend(_split_comma_separated_topics(clean))
+        else:
+            topics.extend(_engineering_syllabus_topic_titles(clean))
+    if topics:
+        return topics
+    joined = " ".join(merged_lines).strip()
+    return _engineering_syllabus_topic_titles(joined)
 
 
 def _split_comma_separated_topics(text: str) -> list[str]:
@@ -1766,13 +1869,13 @@ def _split_comma_separated_topics(text: str) -> list[str]:
         elif char == "," and depth == 0:
             topic = "".join(current).strip(" ,;")
             if topic:
-                topics.append(topic)
+                topics.append(_cleanup_syllabus_topic(topic))
             current = []
         else:
             current.append(char)
     topic = "".join(current).strip(" ,;")
     if topic:
-        topics.append(topic)
+        topics.append(_cleanup_syllabus_topic(topic))
     return topics
 
 
@@ -1837,6 +1940,75 @@ def _is_false_embedded_heading_after_acronym(text: str, match: re.Match[str]) ->
     return acronym_len >= 2
 
 
+def _is_spurious_embedded_part_heading(prefix: str, remainder: str) -> bool:
+    """Skip generic single-word headings with at most one short trailing topic."""
+    title = prefix.strip()
+    if len(title.split()) != 1:
+        return False
+    if title.lower() not in _SPURIOUS_EMBEDDED_PART_WORDS:
+        return False
+    short_topics = [topic for topic in _split_comma_separated_topics(remainder) if len(topic) <= 20]
+    return len(short_topics) <= 1
+
+
+def _find_valid_embedded_part_matches(
+    line: str,
+    *,
+    allow_spurious_part_words: bool = False,
+) -> list[re.Match[str]]:
+    matches: list[re.Match[str]] = []
+    search_from = 0
+    while True:
+        match = _ENGINEERING_EMBEDDED_PART_HEADING_RE.search(line, search_from)
+        if match is None:
+            break
+        if _is_false_embedded_heading_after_acronym(line, match):
+            search_from = match.end()
+            continue
+        embedded_title = match.group(1).strip()
+        remainder = line[match.end() :].strip()
+        spurious = _is_spurious_embedded_part_heading(embedded_title, remainder)
+        if (
+            "," in embedded_title
+            or _is_engineering_inline_part_continuation(embedded_title)
+            or not _looks_like_engineering_part_heading_prefix(embedded_title)
+            or (spurious and not allow_spurious_part_words)
+        ):
+            search_from = match.end()
+            continue
+        matches.append(match)
+        search_from = match.end()
+    return matches
+
+
+def _split_line_at_embedded_parts(
+    line: str,
+    matches: list[re.Match[str]],
+) -> list[tuple[str | None, str]]:
+    if not matches:
+        return [(None, line.strip())]
+
+    segments: list[tuple[str | None, str]] = []
+    clean = line.strip()
+    prefix = clean[: matches[0].start()].strip(" .,;")
+    if prefix:
+        comma_topics = _split_comma_separated_topics(prefix)
+        if comma_topics:
+            first_part_title = comma_topics[0]
+            leading_topics = ", ".join(comma_topics[1:]) if len(comma_topics) > 1 else ""
+            segments.append((first_part_title, leading_topics))
+
+    for index, match in enumerate(matches):
+        part_title = match.group(1).strip()
+        if index + 1 < len(matches):
+            topic_text = clean[match.end() : matches[index + 1].start()].strip(" .,;")
+        else:
+            topic_text = clean[match.end() :].strip(" .,;")
+        segments.append((part_title, topic_text))
+
+    return segments if segments else [(None, clean)]
+
+
 def _iter_engineering_part_segments(line: str) -> list[tuple[str | None, str]]:
     """Split a syllabus line into ordered (part_title, topic_text) segments."""
     clean = line.strip()
@@ -1845,37 +2017,45 @@ def _iter_engineering_part_segments(line: str) -> list[tuple[str | None, str]]:
 
     first_title, first_remainder = _split_engineering_part_heading_line(clean)
     if first_title is None:
+        matches = _find_valid_embedded_part_matches(clean)
+        if matches:
+            return _split_line_at_embedded_parts(clean, matches)
         return [(None, clean)]
 
     segments: list[tuple[str | None, str]] = []
     current_title = first_title
     topic_chunk = first_remainder
-    search_from = 0
+    matches = _find_valid_embedded_part_matches(
+        topic_chunk,
+        allow_spurious_part_words=True,
+    )
 
-    while True:
-        match = _ENGINEERING_EMBEDDED_PART_HEADING_RE.search(topic_chunk, search_from)
-        if match is None:
-            trimmed = topic_chunk.strip(" .,;")
-            if trimmed or not segments:
-                segments.append((current_title, trimmed))
-            break
-        if _is_false_embedded_heading_after_acronym(topic_chunk, match):
-            search_from = match.end()
-            continue
-        embedded_title = match.group(1).strip()
-        if (
-            "," in embedded_title
-            or _is_engineering_inline_part_continuation(embedded_title)
-            or not _looks_like_engineering_part_heading_prefix(embedded_title)
-        ):
-            segments.append((current_title, topic_chunk.strip(" .,;")))
-            break
-        prefix = topic_chunk[: match.start()].strip(" .,;")
-        segments.append((current_title, prefix))
-        current_title = embedded_title
-        topic_chunk = topic_chunk[match.end() :].strip()
+    if not matches:
+        trimmed = topic_chunk.strip(" .,;")
+        if trimmed or not segments:
+            segments.append((current_title, trimmed))
+        return segments
+
+    prefix = topic_chunk[: matches[0].start()].strip(" .,;")
+    segments.append((current_title, prefix))
+    for index, match in enumerate(matches):
+        part_title = match.group(1).strip()
+        if index + 1 < len(matches):
+            topic_text = topic_chunk[match.end() : matches[index + 1].start()].strip(" .,;")
+        else:
+            topic_text = topic_chunk[match.end() :].strip(" .,;")
+        segments.append((part_title, topic_text))
 
     return segments
+
+
+def _merged_line_has_part_structure(line: str, *, is_bold: bool = False) -> bool:
+    clean = line.strip()
+    if not clean:
+        return False
+    if _is_engineering_syllabus_part_heading_line(clean, is_bold=is_bold):
+        return True
+    return bool(_find_valid_embedded_part_matches(clean))
 
 
 def _is_engineering_syllabus_part_heading_line(line: str, *, is_bold: bool = False) -> bool:
@@ -1937,12 +2117,15 @@ def _parse_engineering_syllabus_unit_body(
 ) -> tuple[list[EngineeringSyllabusPart] | None, list[str]]:
     body_lines = _strip_engineering_syllabus_footer_lines(body_lines)
     merged_lines = _merge_wrapped_pdf_lines([line for line, _bold in body_lines if line.strip()])
+    merged_lines = [
+        line for line in merged_lines if not _is_orphan_syllabus_fragment_line(line)
+    ]
     if not merged_lines:
         return None, []
 
     bold_by_line = {line.strip(): bold for line, bold in body_lines if line.strip()}
     has_part_headings = any(
-        _is_engineering_syllabus_part_heading_line(
+        _merged_line_has_part_structure(
             line.strip(),
             is_bold=bold_by_line.get(line.strip(), False),
         )
@@ -1950,21 +2133,46 @@ def _parse_engineering_syllabus_unit_body(
         if line.strip()
     )
     if not has_part_headings:
-        return None, _engineering_syllabus_topic_titles("\n".join(merged_lines))
+        return None, _flat_syllabus_topics(merged_lines)
 
     parts: list[EngineeringSyllabusPart] = []
     current_part_title: str | None = None
     current_part_topics: list[str] = []
+
+    def _flush_current_part() -> None:
+        nonlocal current_part_title, current_part_topics
+        if current_part_title and current_part_topics:
+            parts.append(
+                {
+                    "part_title": current_part_title,
+                    "subtopic_titles": current_part_topics,
+                }
+            )
+        current_part_title = None
+        current_part_topics = []
 
     for line in merged_lines:
         clean = line.strip()
         if not clean:
             continue
 
+        embedded_matches = _find_valid_embedded_part_matches(
+            clean,
+            allow_spurious_part_words=current_part_title is not None,
+        )
         segments = _iter_engineering_part_segments(clean)
         if len(segments) == 1 and segments[0][0] is None:
-            current_part_topics.extend(_split_comma_separated_topics(segments[0][1]))
-            continue
+            if embedded_matches and current_part_title:
+                prefix = clean[: embedded_matches[0].start()].strip(" .,;")
+                if prefix:
+                    current_part_topics.extend(_split_comma_separated_topics(prefix))
+                _flush_current_part()
+                segments = _split_line_at_embedded_parts(clean, embedded_matches)
+            elif embedded_matches and not current_part_title:
+                segments = _split_line_at_embedded_parts(clean, embedded_matches)
+            else:
+                current_part_topics.extend(_split_comma_separated_topics(segments[0][1]))
+                continue
 
         for part_title, topic_text in segments:
             if part_title is None:
@@ -1976,28 +2184,16 @@ def _parse_engineering_syllabus_unit_body(
                     continuation = f"{continuation}: {topic_text}"
                 current_part_topics.extend(_split_comma_separated_topics(continuation))
                 continue
-            if current_part_title and current_part_topics:
-                parts.append(
-                    {
-                        "part_title": current_part_title,
-                        "subtopic_titles": current_part_topics,
-                    }
-                )
+            _flush_current_part()
             current_part_title = part_title
             current_part_topics = _split_comma_separated_topics(topic_text) if topic_text else []
 
-    if current_part_title and current_part_topics:
-        parts.append(
-            {
-                "part_title": current_part_title,
-                "subtopic_titles": current_part_topics,
-            }
-        )
+    _flush_current_part()
 
     if parts:
         return parts, []
 
-    return None, _engineering_syllabus_topic_titles("\n".join(merged_lines))
+    return None, _flat_syllabus_topics(merged_lines)
 
 
 def _flatten_engineering_syllabus_subtopics(unit: EngineeringSyllabusUnit) -> list[str]:

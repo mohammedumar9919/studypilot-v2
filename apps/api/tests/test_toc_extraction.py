@@ -408,6 +408,9 @@ CN_ENGINEERING_FIXTURE = (
 CN_ENGINEERING_LIVE_SHAPE_FIXTURE = (
     Path(__file__).resolve().parent / "fixtures" / "syllabus" / "cn_engineering_live_shape.txt"
 )
+DATASCIENCE_SYLLABUS_FIXTURE = (
+    Path(__file__).resolve().parent / "fixtures" / "syllabus" / "datascience_syllabus.txt"
+)
 
 
 def _cn_engineering_syllabus_pages() -> list[PageText]:
@@ -553,6 +556,40 @@ def test_indian_engineering_syllabus_roman_units_no_pages() -> None:
     assert outline.units[0].page_start == 0
     assert outline.units[4].page_start == 4
     assert all(section.page_start == unit.page_start for unit in outline.units for section in unit.sections)
+
+
+def test_datascience_syllabus_modular_depth() -> None:
+    text = DATASCIENCE_SYLLABUS_FIXTURE.read_text(encoding="utf-8")
+    pages = [PageText(page=1, text=text, char_count=len(text))]
+    units = _parse_engineering_syllabus_structure(pages)
+    assert len(units) == 5
+
+    unit_two = units[1]
+    assert not unit_two.get("parts")
+    assert len(unit_two["subtopic_titles"]) >= 6
+    joined_u2 = " ".join(unit_two["subtopic_titles"]).lower()
+    assert "statistical modeling" in joined_u2
+    assert "hypothesis testing" in joined_u2
+    assert not any("statisti hypothesis" in topic.lower() for topic in unit_two["subtopic_titles"])
+
+    unit_three = units[2]
+    assert unit_three.get("parts")
+    assert len(unit_three["parts"]) == 1
+    assert unit_three["parts"][0]["part_title"] == "Predictive Modeling"
+    part_titles_u3 = [part["part_title"] for part in unit_three.get("parts", [])]
+    assert not any("inference" in title.lower() for title in part_titles_u3)
+
+    unit_four = units[3]
+    assert unit_four.get("parts")
+    part_titles_u4 = [part["part_title"] for part in unit_four["parts"]]
+    assert any("operations" in title.lower() for title in part_titles_u4)
+
+    unit_five = units[4]
+    assert unit_five.get("parts")
+    assert len(unit_five["parts"]) == 2
+    part_titles_u5 = [part["part_title"] for part in unit_five["parts"]]
+    assert any("classification" in title.lower() for title in part_titles_u5)
+    assert any("clustering" in title.lower() for title in part_titles_u5)
 
 
 def test_engineering_syllabus_ocr_unit_repair() -> None:

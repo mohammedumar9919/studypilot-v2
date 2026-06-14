@@ -1,8 +1,10 @@
 # API & schema contracts (frozen)
 
-**Version:** 1.2.0  
+**Version:** 1.3.0  
 **Status:** Frozen for Phase 1 parallel work (Agent B ingest ∥ Agent C retrieval prep).  
 **Change process:** Orchestrator + human approval only. Bump version and notify all active agents.
+
+**1.3.0 (2026-06-14 — SP-053b):** Document M2M assignment APIs for units/parts/subtopics (`PUT .../structure/{units|parts|subtopics}/{id}/documents`). GET structure returns populated `document_ids` (including subtopics). Query/stream body adds optional `unit_ids`, `part_ids`, `subtopic_ids` (study presets only); mutually exclusive with `source_ids` and `topic_ids`. Structure scope expands to `document_id` set via M2M links + inheritance (subtopic → part → unit; part → unit + subtopics; unit → full subtree) and filters retrieval via existing `document_ids` SQL filter (hybrid RRF unchanged).
 
 **1.2.0 (2026-06-13 — SP-053a.1):** Additive `course_parts`, nullable `course_subtopics.part_id`, `document_part_links` schema. Nested structure API: `units[].parts[].subtopics[]` or flat `units[].subtopics[]`. Paste import supports 3-level indent (0=unit, 2=part, 4=topic/comma line). Confirm/import-syllabus accept nested preview payloads; flat `{ title, subtopics }` remains valid.
 
@@ -315,6 +317,28 @@ When `source_ids` is omitted, RRF weights, rerank, and gate thresholds are uncha
 | Mutual exclusion | Cannot use with `source_ids` on the same request |
 
 When `topic_ids` is omitted, RRF weights, rerank, and gate thresholds are unchanged (golden eval invariant).
+
+**Optional fields — structure scope (Phase S — SP-053b):** `unit_ids`, `part_ids`, `subtopic_ids` — each `list[str] | null` of course-structure UUID strings. Study presets only (`study`, `summary`, `flashcards`). Omitted or `null` → unchanged. Empty `[]` on any provided field → **400**. Mutually exclusive with `source_ids` and `topic_ids` (400). Multiple structure fields may be combined on one request (union of expanded document sets).
+
+**Expansion (read-only, no RRF change):** Resolved to `document_id IN (...)` before hybrid retrieval:
+
+| Scope | Document set |
+|-------|----------------|
+| `subtopic_ids` | Docs linked to subtopic + parent part + parent unit |
+| `part_ids` | Docs linked to part + parent unit + all subtopics under that part |
+| `unit_ids` | Docs linked to unit, any part, or any subtopic under the unit |
+
+**Validation (400 when structure scope provided):**
+
+| Rule | Detail |
+|------|--------|
+| UUID format | Each entry must be a valid UUID string |
+| Course ownership | Unit/part/subtopic must exist and belong to `course_id` |
+| Preset | Not allowed for `exam` preset |
+| Mutual exclusion | Cannot combine with `source_ids` or `topic_ids` |
+| Non-empty expansion | At least one assigned document must match expanded set |
+
+When structure scope is omitted, RRF weights, rerank, and gate thresholds are unchanged (golden eval invariant).
 
 **Response (200):**
 
@@ -744,7 +768,7 @@ User-defined topic buckets for **organized** mode. Additive routes; no retrieval
 
 ### Course structure (Phase S — SP-053a, SP-053a.1)
 
-Hierarchical units → optional parts → subtopics for Organized Study. **Preview endpoints do not persist.** **Confirm** replaces the entire tree for the course and sets `structure_mode=organized`. Document M2M links exist in schema but are **not wired** until SP-053b (`document_ids` always `[]` in GET).
+Hierarchical units → optional parts → subtopics for Organized Study. **Preview endpoints do not persist.** **Confirm** replaces the entire tree for the course and sets `structure_mode=organized`. Document M2M links are wired via assignment endpoints (SP-053b); GET returns populated `document_ids` on units, parts, and subtopics.
 
 **GET `/api/v1/courses/{course_id}/structure` (200):**
 
@@ -764,7 +788,7 @@ Nested when parts exist; flat subtopics when a unit has no parts:
           "title": "Laws of Thermodynamics",
           "sort_order": 0,
           "subtopics": [
-            { "id": "uuid-string", "title": "Heat", "sort_order": 0 }
+            { "id": "uuid-string", "title": "Heat", "sort_order": 0, "document_ids": [] }
           ],
           "document_ids": []
         }
@@ -776,12 +800,26 @@ Nested when parts exist; flat subtopics when a unit has no parts:
       "title": "Unit 2 Atomic Structure",
       "sort_order": 1,
       "subtopics": [
-        { "id": "uuid-string", "title": "Orbitals", "sort_order": 0 }
+        { "id": "uuid-string", "title": "Orbitals", "sort_order": 0, "document_ids": [] }
       ],
       "document_ids": []
     }
   ]
 }
+```
+
+**PUT `/api/v1/courses/{course_id}/structure/units/{unit_id}/documents` (200):** body `{ "document_ids": ["uuid-string", ...] }` — replaces all unit-level M2M links. Same shape for **PUT** `.../parts/{part_id}/documents` and **PUT** `.../subtopics/{subtopic_id}/documents`. Returns GET structure shape. Documents must belong to `course_id`, `status` in `ready` \| `processing`, `doc_kind` in `notes` \| `textbook` \| `syllabus`. **404** unknown course/node; **400** invalid UUID, wrong course document, or empty/invalid list.
+
+**Manual verify (assignment + scoped query):**
+
+```powershell
+curl.exe -X PUT http://127.0.0.1:8002/api/v1/courses/CHEM/structure/units/{unit_id}/documents `
+  -H "Content-Type: application/json" `
+  -d "{\"document_ids\":[\"{document_id}\"]}"
+
+curl.exe -X POST http://127.0.0.1:8002/api/v1/query `
+  -H "Content-Type: application/json" `
+  -d "{\"course_id\":\"CHEM\",\"question\":\"Explain heat transfer\",\"preset\":\"study\",\"unit_ids\":[\"{unit_id}\"]}"
 ```
 
 Units with parts omit top-level `subtopics`; units without parts omit `parts`. **404** unknown course. **200** with `"units": []` when no structure confirmed yet.
