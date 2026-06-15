@@ -61,7 +61,7 @@ This is the **single source of truth** for execution status. A new Cursor chat s
 | **A — Study workspace** | **DONE** (presets, outline pipeline, exam mode) | — |
 | **A.5 — Exam Truth** | **DONE** | — |
 | **S — Flex Study** | **DONE** | — |
-| **B — Full product shell** | **ACTIVE** | SP-012a → 012b → 012c → 012d (Clerk auth + multi-page UI) |
+| **B — Full product shell** | **ACTIVE** | SP-012b → 012c → 012d (012a DONE) |
 | **C — Platform** | Open | SP-013 queue, SP-045 doc router, SP-014 |
 | **Optional** | — | Wave 8 LLM outline (SP-041); SP-042d PYQ classification |
 
@@ -315,7 +315,7 @@ Brief: [DESIGN_DIRECTION_WAVE4A.md](DESIGN_DIRECTION_WAVE4A.md)
 | SP-053c Unified Course structure UI | **DONE** (Agent E; CN + DS user UAT PASS) |
 | SP-053d Modular syllabus depth | **DONE** (Data Science 5/5 units; CN regression 45 pytest) |
 
-**Council Stage 3:** Phase S **closed** (2026-06-02). User UAT PASS on CN + Data Science course structure import.
+**Council Stage 3:** SP-012a **closed** (2026-06-02). User gate: `pytest tests/test_workspaces.py` 5/5; `alembic upgrade head` PASS.
 
 ---
 
@@ -323,8 +323,8 @@ Brief: [DESIGN_DIRECTION_WAVE4A.md](DESIGN_DIRECTION_WAVE4A.md)
 
 | Deliverable | Status |
 |-------------|--------|
-| SP-012a Workspace schema (Alembic 007) | **NEXT** — council Stage 1 approval pending |
-| SP-012b Clerk JWT + dev bypass | Pending |
+| SP-012a Workspace schema (Alembic 007) | **DONE** | `users`/`workspaces`/`workspace_members`; `courses.workspace_id`; System Demo backfill; pytest 5/5; commit `c94ab42` |
+| SP-012b Clerk JWT + dev bypass | **NEXT** — council Stage 1 approval pending |
 | SP-012c Workspace course APIs | Pending |
 | SP-012d Multi-page shell (react-router + Clerk React) | Pending |
 
@@ -338,8 +338,8 @@ Brief: [DESIGN_DIRECTION_WAVE4A.md](DESIGN_DIRECTION_WAVE4A.md)
 
 | # | Priority | Item | Owner |
 |---|----------|------|-------|
-| 1 | **Phase B** | **SP-012a** — workspace schema + Alembic 007 + demo backfill | Agent D |
-| 2 | **Phase B** | SP-012b → 012c → 012d (sequential) | Agent D + E |
+| 1 | **Phase B** | **SP-012b** — Clerk JWT middleware + dev bypass + route guards | Agent D |
+| 2 | **Phase B** | SP-012c → 012d (sequential after 012b) | Agent D + E |
 | 3 | Later | SP-042d, exam golden, Campus SP-040–046 | Phase E — defer |
 
 ---
