@@ -1,7 +1,7 @@
 # StudyPilot v2 — Gap Backlog (reconciled)
 
 **Source:** `StudyPilot-v2-Gap-Backlog-and-MedX-Learnings.md` (2026-05-29)  
-**Reconciled:** 2026-06-02 against repo state (Phase S DONE; Phase B SP-012 ACTIVE)  
+**Reconciled:** 2026-06-15 against repo state (Phase S DONE; **Phase B SP-012 DONE**)  
 **MedX reference:** UX/information architecture only — not backend model
 
 ---
@@ -34,8 +34,8 @@
 |----|------|--------|-------|
 | SP-010 | Course TOC browse (pre-query) | **DONE** | Outline API (Agent D) + `CourseOutlineSidebar` (Agent E) |
 | SP-011 | PYQ topic frequency | **DONE** | OCR + API + CLI + heatmap UI (Agent E Wave 1) |
-| SP-012 | Auth + workspace | **ACTIVE** | Phase B Wave 10 — SP-012a next |
-| SP-013 | Durable ingest queue | **DEFER** | Phase C — post SP-012 |
+| SP-012 | Auth + workspace + multi-page UI | **DONE** | Phase B Wave 10 — 012a `c94ab42`, 012b `6a79564`, 012c `a93bf2b`, 012d `921a63b` |
+| SP-013 | Durable ingest queue | **OPEN** | Phase C — post Phase B |
 | SP-014 | Observability / RAGAS | **DEFER** | After CI stable |
 | SP-015 | Exam intelligence | **DONE** | Exam preset + heatmap (SP-015 D+E) |
 | SP-016 | 95% pre-installer | **DONE** | 100% on golden set; CI lock next |
@@ -141,7 +141,7 @@ See [failures-checklist.md](failures-checklist.md): no vector-only, no past_pape
 | **8** | LLM outline assist (SP-041) — optional |
 | **9** | Phase A.5 — Exam Truth — **DONE** (2026-06-04) |
 | **S** | Phase S — Flex Study (SP-050a–053d) — **DONE** (2026-06-02) |
-| **10** | Phase B — auth + multi-page UI (SP-012) — **ACTIVE** |
+| **10** | Phase B — auth + multi-page UI (SP-012) — **DONE** (2026-06-02; reconciled 2026-06-15) |
 | **SP-015** | Exam preset — **DONE** |
 
 See [CURRENT_STATE.md](CURRENT_STATE.md) and [COUNCIL_ORCHESTRATION.md](COUNCIL_ORCHESTRATION.md).

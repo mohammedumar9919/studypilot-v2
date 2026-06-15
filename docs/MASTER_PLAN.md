@@ -1,6 +1,6 @@
 # StudyPilot v2 — Master Plan (runtime companion)
 
-**Effective:** 2026-06-02  
+**Effective:** 2026-06-15  
 **Source:** [Flex Study master plan](C:\Users\Owner\.cursor\plans\flex_study_master_plan_17723ead.plan.md) + [Phase B SP-012 plan](C:\Users\Owner\.cursor\plans\phase_b_sp-012_auth_168f8090.plan.md)  
 **Runtime truth for status:** [CURRENT_STATE.md](CURRENT_STATE.md)
 
@@ -25,9 +25,11 @@ Hybrid retrieval invariant: **RRF + rerank + gate**; study presets exclude `past
 | A — Study workspace | **DONE** | Presets, outline pipeline, exam mode |
 | A.5 — Exam Truth | **DONE** | Wave 9; frozen baseline |
 | **S — Flex Study** | **DONE** | SP-050a–053d; user UAT CN + Data Science PASS |
-| **B — Product shell** | **ACTIVE** | SP-012 Clerk auth + multi-page UI |
+| **B — Product shell** | **DONE** | SP-012a–012d; commits `c94ab42`–`921a63b` |
 | C — Platform | Open | SP-013 queue, SP-045 router, SP-014 |
-| E — Exam expansion | **DEFER** | SP-042d, exam golden — after Phase B |
+| E — Exam expansion | **DEFER** | SP-042d, exam golden — until prioritized |
+
+**NEXT:** Phase E (SP-042d, exam golden) **DEFERRED** — or Phase C (SP-013 ingest queue).
 
 ---
 
@@ -59,31 +61,31 @@ Hybrid retrieval invariant: **RRF + rerank + gate**; study presets exclude `past
 
 ---
 
-## Phase B — SP-012 (active)
+## Phase B — SP-012 (complete)
 
 **Human Gate 0:** Clerk — React SDK on web; FastAPI JWT verification; dev bypass `STUDYPILOT_AUTH_DISABLED=1` for pytest/eval.
 
 **Sequential slices (no parallel 012b + 012d):**
 
-| Slice | Owner | Goal |
-|-------|-------|------|
-| SP-012a | Agent D | Alembic 007: users, workspaces, workspace_members; `courses.workspace_id`; System Demo backfill |
-| SP-012b | Agent D | Clerk JWT middleware + route guards on all course/query routes |
-| SP-012c | Agent D | `GET/POST .../workspaces/me/courses`; workspace-scoped upload create |
-| SP-012d | Agent E | react-router + Clerk React; Login / Courses / Study pages |
+| Slice | Owner | Status | Commit |
+|-------|-------|--------|--------|
+| SP-012a | Agent D | **DONE** | `c94ab42` — Alembic 007: users, workspaces, workspace_members; `courses.workspace_id`; System Demo backfill |
+| SP-012b | Agent D | **DONE** | `6a79564` — Clerk JWT middleware + route guards on all course/query routes |
+| SP-012c | Agent D | **DONE** | `a93bf2b` — `GET/POST .../workspaces/me/courses`; workspace-scoped upload create |
+| SP-012d | Agent E | **DONE** | `921a63b` — react-router + Clerk React; Login / Courses / Study pages |
 
-**Forbidden:** `retrieve.py`, `rerank.py`, `gate.py` (except auth wiring in `main.py`); `eval/golden_set.jsonl`.
+**Forbidden (unchanged):** `retrieve.py`, `rerank.py`, `gate.py` (except auth wiring in `main.py`); `eval/golden_set.jsonl`.
 
-**Phase B done when:** Clerk sign-in, workspace-scoped courses, study UI parity, smoke eval **100%/10/10**.
+**Phase B done when (met):** Clerk sign-in, workspace-scoped courses, study UI parity, smoke eval **100%/10/10** — closed 2026-06-02 (Council Stage 3 SP-012d; user UAT PASS).
 
 ---
 
-## Deferred (do not assign during Phase B)
+## Deferred (post Phase B)
 
-- SP-042d PYQ unit classification
-- `eval/exam_golden_set.jsonl` expansion
+- SP-042d PYQ unit classification (Phase E)
+- `eval/exam_golden_set.jsonl` expansion (Phase E)
 - Exam prediction / heatmap balance work (Phase E)
-- SP-012 blocked Phase C items (SP-013, SP-045, SP-014)
+- Phase C platform: SP-013 ingest queue, SP-045 doc router, SP-014 observability
 
 ---
 
