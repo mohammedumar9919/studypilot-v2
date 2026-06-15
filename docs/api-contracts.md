@@ -1,8 +1,10 @@
 # API & schema contracts (frozen)
 
-**Version:** 1.5.0  
+**Version:** 1.6.0  
 **Status:** Frozen for Phase 1 parallel work (Agent B ingest ∥ Agent C retrieval prep).  
 **Change process:** Orchestrator + human approval only. Bump version and notify all active agents.
+
+**1.6.0 (2026-06-14 — SP-012c):** Workspace-scoped course APIs: `GET /api/v1/workspaces/me`, `GET /api/v1/workspaces/me/courses`, `POST /api/v1/workspaces/me/courses`. Course ids validated with `^[A-Z0-9][A-Z0-9_-]{0,62}$` (**422** on invalid). Duplicate id in active workspace or id registered in another workspace → **409**. Upload route `POST /api/v1/courses/{course_id}/documents` auto-creates missing courses in the active workspace (same validation/conflict rules); existing courses still require workspace access (**404** when course belongs to another workspace). `ensure_course(..., workspace_id=...)` defaults to System Demo for CLI compat.
 
 **1.5.0 (2026-06-14 — SP-012b):** Clerk JWT auth on all `/api/v1/courses/{course_id}/...`, `/api/v1/query`, `/api/v1/query/stream`, and `PATCH /api/v1/documents/{document_id}`. `/health` remains public. Dev bypass: `STUDYPILOT_AUTH_DISABLED=1` when `environment=development` skips Bearer verification and scopes requests to System Demo workspace (`auth_disabled()`). Production requires `Authorization: Bearer <Clerk session JWT>`; invalid/missing token → **401**; course not in active workspace → **404**.
 
@@ -57,6 +59,11 @@ Internal service (`app/services/workspaces.py`); no HTTP routes in this slice.
 | `get_or_create_system_demo_workspace(session)` | Idempotent demo workspace row |
 | `ensure_course_workspace(session, course)` | Assigns demo workspace when `course.workspace_id` is unset |
 | `list_workspace_courses(session, workspace_id)` | Courses scoped to one workspace |
+| `validate_course_id(course_id)` | Raises on invalid id pattern (SP-012c) |
+| `create_workspace_course(session, workspace_id, course_id, name?)` | Create course in workspace; **409** if duplicate/conflict (SP-012c) |
+| `get_or_create_workspace_course(session, workspace_id, course_id, name?)` | Upload auto-create helper (SP-012c) |
+
+**SP-012c (done):** HTTP workspace course routes + upload auto-create. See **Workspace courses** below.
 
 **SP-012b (done):** Clerk JWT middleware + `require_course_access` on all `/api/v1/courses/{course_id}/...` and `/api/v1/query*` routes. See **Authentication** below.
 
@@ -67,7 +74,8 @@ Internal service (`app/services/workspaces.py`); no HTTP routes in this slice.
 | Route pattern | Auth |
 |---------------|------|
 | `GET /health` | **Public** — no Bearer token |
-| `/api/v1/courses/{course_id}/...` | Bearer JWT (or dev bypass) + course must belong to active workspace |
+| `GET /api/v1/workspaces/me`, `GET/POST /api/v1/workspaces/me/courses` | Bearer JWT (or dev bypass); active workspace scope |
+| `/api/v1/courses/{course_id}/...` | Bearer JWT (or dev bypass) + course must belong to active workspace (upload auto-creates missing course in active workspace) |
 | `POST /api/v1/query`, `POST /api/v1/query/stream` | Bearer JWT (or dev bypass) + `course_id` in body must belong to active workspace |
 | `PATCH /api/v1/documents/{document_id}` | Bearer JWT (or dev bypass) + document's course must belong to active workspace |
 
@@ -91,6 +99,66 @@ Internal service (`app/services/workspaces.py`); no HTTP routes in this slice.
 | Course/document not in active workspace | **404** (`Course not found: {course_id}`) |
 
 **Modules:** `app/auth/clerk_jwt.py` (`verify_clerk_jwt`), `app/deps/auth.py` (`AuthContext`, `require_course_access_dep`).
+
+---
+
+## Workspace courses (SP-012c)
+
+Bearer JWT (or dev bypass) required. Active workspace from auth context (System Demo when bypass enabled).
+
+### `GET /api/v1/workspaces/me`
+
+**Response (200):**
+
+```json
+{
+  "id": "00000000-0000-4000-a000-000000000001",
+  "name": "System Demo",
+  "slug": "system-demo"
+}
+```
+
+### `GET /api/v1/workspaces/me/courses`
+
+**Response (200):** array ordered by course `id`.
+
+```json
+[
+  {
+    "id": "PPL",
+    "name": "Programming Languages",
+    "structure_mode": "mapped",
+    "created_at": "2026-06-14T12:00:00+00:00"
+  }
+]
+```
+
+### `POST /api/v1/workspaces/me/courses`
+
+**Request (201):** `{ "id": string, "name"?: string }` — `id` must match `^[A-Z0-9][A-Z0-9_-]{0,62}$`.
+
+**Response (201):** same shape as list item (`structure_mode` defaults to `corpus`).
+
+**Errors:**
+
+| Status | When |
+|--------|------|
+| 422 | Invalid course id pattern |
+| 409 | Course id already exists in active workspace, or id registered in another workspace |
+
+### Upload auto-create
+
+`POST /api/v1/courses/{course_id}/documents` — when `course_id` does not exist, validates id and creates course in active workspace before ingest. When course exists in another workspace, returns **404** (same as other course routes). Invalid id → **422**.
+
+**Manual verify:**
+
+```powershell
+curl.exe http://127.0.0.1:8002/api/v1/workspaces/me
+curl.exe http://127.0.0.1:8002/api/v1/workspaces/me/courses
+curl.exe -X POST http://127.0.0.1:8002/api/v1/workspaces/me/courses `
+  -H "Content-Type: application/json" `
+  -d "{\"id\":\"BIO101\",\"name\":\"Intro Biology\"}"
+```
 
 ---
 
@@ -144,7 +212,7 @@ def ingest_document(
 
 **Ingest behavior:** `upload_intent=quick` on `notes` skips auto TOC extraction into `courses.outline_data` (corpus layout). `topic` stores metadata only (no topic-scoped retrieval in 050c). Chunking, embeddings, PYQ parse, and PPL fixture outlines unchanged.
 
-**Behavior:** Save PDF to server upload dir → call `ingest_document()` synchronously (v1 pilot). Auto-creates course if missing (same as CLI). Re-upload same `(course_id, filename, doc_kind)` replaces chunks (idempotent).
+**Behavior:** Save PDF to server upload dir → call `ingest_document()` synchronously (v1 pilot). Auto-creates course in active workspace when missing (SP-012c); existing courses require workspace access. Re-upload same `(course_id, filename, doc_kind)` replaces chunks (idempotent).
 
 **Response (201):**
 
@@ -1133,5 +1201,6 @@ Agent C may develop against a **fixture DB** populated by `scripts/ingest_ppl.ps
 | `tests/test_topic_scoped_retrieval.py` | D | topic_ids validation + structure-mode |
 | `tests/test_course_map_promotion.py` | D | Course Map eligibility + promote |
 | `tests/test_course_structure.py` | D | Course structure import/confirm APIs (SP-053a) |
+| `tests/test_workspace_courses.py` | D | Workspace course list/create + upload auto-create (SP-012c) |
 
 All tests: run from `apps/api` with Postgres test DB (`studypilot_test` on port 5433).

@@ -33,6 +33,14 @@ from app.services.course_structure import (
     _parse_document_id_list,
 )
 from app.services.study_layout import get_study_layout
+from app.services.workspaces import (
+    CourseConflictError,
+    CourseIdValidationError,
+    create_workspace_course,
+    get_or_create_workspace_course,
+    list_workspace_courses,
+    serialize_workspace_course,
+)
 from app.services.study_topics import (
     assign_document_topic,
     bulk_create_study_topics,
@@ -349,6 +357,69 @@ class DocumentUploadResponse(BaseModel):
     extraction_quality: dict | None = None
 
 
+class WorkspaceMeResponse(BaseModel):
+    id: str
+    name: str
+    slug: str
+
+
+class WorkspaceCourseResponse(BaseModel):
+    id: str
+    name: str
+    structure_mode: str
+    created_at: str | None = None
+
+
+class CreateWorkspaceCourseRequest(BaseModel):
+    id: str = Field(min_length=1, max_length=63)
+    name: str | None = None
+
+
+@app.get("/api/v1/workspaces/me", response_model=WorkspaceMeResponse)
+def get_workspace_me(auth: AuthContext = Depends(get_auth_context)) -> WorkspaceMeResponse:
+    workspace = auth.workspace
+    return WorkspaceMeResponse(
+        id=str(workspace.id),
+        name=workspace.name,
+        slug=workspace.slug,
+    )
+
+
+@app.get("/api/v1/workspaces/me/courses", response_model=list[WorkspaceCourseResponse])
+def list_my_workspace_courses(
+    session: Session = Depends(get_session),
+    auth: AuthContext = Depends(get_auth_context),
+) -> list[WorkspaceCourseResponse]:
+    courses = list_workspace_courses(session, auth.workspace.id)
+    return [WorkspaceCourseResponse(**serialize_workspace_course(course)) for course in courses]
+
+
+@app.post(
+    "/api/v1/workspaces/me/courses",
+    status_code=201,
+    response_model=WorkspaceCourseResponse,
+)
+def create_my_workspace_course(
+    body: CreateWorkspaceCourseRequest,
+    session: Session = Depends(get_session),
+    auth: AuthContext = Depends(get_auth_context),
+) -> WorkspaceCourseResponse:
+    try:
+        course = create_workspace_course(
+            session,
+            auth.workspace.id,
+            body.id,
+            name=body.name,
+        )
+        session.commit()
+        session.refresh(course)
+    except CourseIdValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except CourseConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return WorkspaceCourseResponse(**serialize_workspace_course(course))
+
+
 @app.post(
     "/api/v1/courses/{course_id}/documents",
     status_code=201,
@@ -360,9 +431,21 @@ async def upload_document(
     doc_kind: str = Form(...),
     upload_intent: str | None = Form(None),
     session: Session = Depends(get_session),
-    _course: Course = Depends(require_course_access_dep),
+    auth: AuthContext = Depends(get_auth_context),
 ) -> DocumentUploadResponse:
     """Multipart PDF upload → synchronous ingest (v1 pilot)."""
+    existing = session.get(Course, course_id)
+    if existing is not None:
+        require_course_access(session, course_id, auth.workspace)
+    else:
+        try:
+            get_or_create_workspace_course(session, auth.workspace.id, course_id)
+            session.commit()
+        except CourseIdValidationError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except CourseConflictError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
     try:
         data = await file.read()
         result = upload_and_ingest_document(
