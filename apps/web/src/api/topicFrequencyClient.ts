@@ -1,4 +1,5 @@
 import type { TopicFrequencyResponse } from '../types'
+import { authFetch } from './authFetch'
 
 export class TopicFrequencyApiError extends Error {
   status: number
@@ -12,10 +13,13 @@ export class TopicFrequencyApiError extends Error {
 
 export async function fetchTopicFrequency(
   courseId: string,
-  signal?: AbortSignal,
+  options?: { sectionDetail?: boolean; signal?: AbortSignal },
 ): Promise<TopicFrequencyResponse> {
   const encoded = encodeURIComponent(courseId.trim())
-  const response = await fetch(`/api/v1/courses/${encoded}/exam/topic-frequency`, { signal })
+  const query = options?.sectionDetail ? '?detail=sections' : ''
+  const response = await authFetch(`/api/v1/courses/${encoded}/exam/topic-frequency${query}`, {
+    signal: options?.signal,
+  })
 
   if (!response.ok) {
     let detail = response.statusText

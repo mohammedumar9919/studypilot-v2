@@ -3,6 +3,7 @@ import type {
   StructureImportPreviewResponse,
   StructurePreviewUnit,
 } from '../types'
+import { authFetch } from './authFetch'
 
 export class CourseStructureApiError extends Error {
   status: number
@@ -33,7 +34,7 @@ export async function fetchCourseStructure(
   courseId: string,
   signal?: AbortSignal,
 ): Promise<CourseStructureResponse> {
-  const response = await fetch(coursePath(courseId), { signal })
+  const response = await authFetch(coursePath(courseId), { signal })
 
   if (!response.ok) {
     return parseCourseStructureError(response)
@@ -46,7 +47,7 @@ export async function importStructurePaste(
   courseId: string,
   text: string,
 ): Promise<StructureImportPreviewResponse> {
-  const response = await fetch(`${coursePath(courseId)}/import-paste`, {
+  const response = await authFetch(`${coursePath(courseId)}/import-paste`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text }),
@@ -64,7 +65,7 @@ export async function importStructureSyllabus(
   documentId?: string,
 ): Promise<StructureImportPreviewResponse> {
   const body = documentId ? { document_id: documentId } : {}
-  const response = await fetch(`${coursePath(courseId)}/import-syllabus`, {
+  const response = await authFetch(`${coursePath(courseId)}/import-syllabus`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -81,7 +82,7 @@ export async function confirmCourseStructure(
   courseId: string,
   units: StructurePreviewUnit[],
 ): Promise<CourseStructureResponse> {
-  const response = await fetch(`${coursePath(courseId)}/confirm`, {
+  const response = await authFetch(`${coursePath(courseId)}/confirm`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ units }),
@@ -99,7 +100,7 @@ export async function assignUnitDocuments(
   unitId: string,
   documentIds: string[],
 ): Promise<CourseStructureResponse> {
-  const response = await fetch(
+  const response = await authFetch(
     `${coursePath(courseId)}/units/${encodeURIComponent(unitId)}/documents`,
     {
       method: 'PUT',
@@ -120,7 +121,7 @@ export async function assignPartDocuments(
   partId: string,
   documentIds: string[],
 ): Promise<CourseStructureResponse> {
-  const response = await fetch(
+  const response = await authFetch(
     `${coursePath(courseId)}/parts/${encodeURIComponent(partId)}/documents`,
     {
       method: 'PUT',
@@ -141,7 +142,7 @@ export async function assignSubtopicDocuments(
   subtopicId: string,
   documentIds: string[],
 ): Promise<CourseStructureResponse> {
-  const response = await fetch(
+  const response = await authFetch(
     `${coursePath(courseId)}/subtopics/${encodeURIComponent(subtopicId)}/documents`,
     {
       method: 'PUT',

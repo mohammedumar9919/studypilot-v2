@@ -1,6 +1,22 @@
-import type { DocumentKind, DocumentUploadResponse } from '../types'
+import type { DocumentKind, DocumentUploadResponse, UploadIntent } from '../types'
+import { authFetch } from './authFetch'
 
-const UPLOAD_TIMEOUT_MS = 120_000
+/** Sync ingest on localhost — large PDFs + OCR exceed 2 min (SP-017.1 hotfix). */
+const UPLOAD_TIMEOUT_MS: Record<DocumentKind, number> = {
+  notes: 10 * 60 * 1000,
+  textbook: 10 * 60 * 1000,
+  syllabus: 10 * 60 * 1000,
+  past_paper: 30 * 60 * 1000,
+}
+
+export function uploadTimeoutMinutes(docKind: DocumentKind): number {
+  return UPLOAD_TIMEOUT_MS[docKind] / 60_000
+}
+
+function uploadTimeoutMessage(docKind: DocumentKind): string {
+  const minutes = uploadTimeoutMinutes(docKind)
+  return `Upload timed out after ${minutes} minutes. Large PDFs and past papers can take longer — try CLI ingest or wait for background indexing (SP-013).`
+}
 
 export class UploadApiError extends Error {
   status: number
@@ -16,21 +32,24 @@ export async function postDocumentUpload(
   courseId: string,
   file: File,
   docKind: DocumentKind,
+  uploadIntent: UploadIntent,
   signal?: AbortSignal,
 ): Promise<DocumentUploadResponse> {
   const encoded = encodeURIComponent(courseId.trim())
   const formData = new FormData()
   formData.append('file', file)
   formData.append('doc_kind', docKind)
+  formData.append('upload_intent', uploadIntent)
 
+  const timeoutMs = UPLOAD_TIMEOUT_MS[docKind]
   const timeoutController = new AbortController()
-  const timeoutId = window.setTimeout(() => timeoutController.abort(), UPLOAD_TIMEOUT_MS)
+  const timeoutId = window.setTimeout(() => timeoutController.abort(), timeoutMs)
 
   const onAbort = () => timeoutController.abort()
   signal?.addEventListener('abort', onAbort)
 
   try {
-    const response = await fetch(`/api/v1/courses/${encoded}/documents`, {
+    const response = await authFetch(`/api/v1/courses/${encoded}/documents`, {
       method: 'POST',
       body: formData,
       signal: timeoutController.signal,
@@ -51,7 +70,7 @@ export async function postDocumentUpload(
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
       if (signal?.aborted) throw err
-      throw new UploadApiError('Upload timed out after 2 minutes. Try again or use a smaller PDF.', 408)
+      throw new UploadApiError(uploadTimeoutMessage(docKind), 408)
     }
     throw err
   } finally {

@@ -1,4 +1,5 @@
 import type { SidebarViews, StructureMode, StudyLayoutMode, StudyLayoutResponse } from '../types'
+import { authFetch } from './authFetch'
 
 export class StudyLayoutApiError extends Error {
   status: number
@@ -74,7 +75,7 @@ export async function fetchStudyLayout(
   }
 
   const encoded = encodeURIComponent(trimmed)
-  const response = await fetch(`/api/v1/courses/${encoded}/study-layout`, { signal })
+  const response = await authFetch(`/api/v1/courses/${encoded}/study-layout`, { signal })
 
   if (response.status === 404) {
     return stubStudyLayout(trimmed)
