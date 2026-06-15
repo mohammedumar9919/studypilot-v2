@@ -52,7 +52,7 @@ This is the **single source of truth** for execution status. A new Cursor chat s
 | SP-053c Unified Course structure UI (Phase S) | **DONE** | Sources \| Course structure tabs; Agent E; user UAT PASS |
 | SP-053d Modular syllabus depth (Phase S) | **DONE** | DS + CN parser; `datascience_syllabus.txt` fixture; pytest 45/45 |
 
-**Status:** **Phase S — Flex Study DONE.** **NEXT:** **Phase B — SP-012** (auth + multi-page UI). **Phase E (SP-042d, exam golden) DEFERRED** until Phase B gates pass.
+**Status:** **Phase B — Product shell DONE.** **NEXT:** **Phase E** (SP-042d, exam golden) **DEFERRED** until prioritized — or **Phase C** platform work.
 
 ### Build order (product-first)
 
@@ -61,9 +61,9 @@ This is the **single source of truth** for execution status. A new Cursor chat s
 | **A — Study workspace** | **DONE** (presets, outline pipeline, exam mode) | — |
 | **A.5 — Exam Truth** | **DONE** | — |
 | **S — Flex Study** | **DONE** | — |
-| **B — Full product shell** | **ACTIVE** | SP-012b → 012c → 012d (012a DONE) |
+| **B — Full product shell** | **DONE** | SP-012a–012d complete |
 | **C — Platform** | Open | SP-013 queue, SP-045 doc router, SP-014 |
-| **Optional** | — | Wave 8 LLM outline (SP-041); SP-042d PYQ classification |
+| **E — Exam golden / PYQ** | **DEFERRED** | SP-042d, exam golden set (human approval) |
 
 ---
 
@@ -319,18 +319,20 @@ Brief: [DESIGN_DIRECTION_WAVE4A.md](DESIGN_DIRECTION_WAVE4A.md)
 
 ---
 
-## Phase B — Product shell (ACTIVE)
+## Phase B — Product shell (DONE)
 
 | Deliverable | Status |
 |-------------|--------|
 | SP-012a Workspace schema (Alembic 007) | **DONE** | `users`/`workspaces`/`workspace_members`; `courses.workspace_id`; System Demo backfill; pytest 5/5; commit `c94ab42` |
-| SP-012b Clerk JWT + dev bypass | **NEXT** — council Stage 1 approval pending |
-| SP-012c Workspace course APIs | Pending |
-| SP-012d Multi-page shell (react-router + Clerk React) | Pending |
+| SP-012b Clerk JWT + dev bypass | **DONE** | Route guards on course/query/doc PATCH; bypass env; pytest 4/4; smoke 100%/10/10; commit `6a79564` |
+| SP-012c Workspace course APIs | **DONE** | `GET/POST /api/v1/workspaces/me/courses`; upload auto-create; pytest 7/7; api-contracts **1.6.0** |
+| SP-012d Multi-page shell | **DONE** | react-router + Clerk React; `/courses` dashboard; `authFetch` on all clients; `npm run build` PASS; user UAT PASS |
+
+**Council Stage 3:** SP-012d **closed** (2026-06-02). User UAT: `http://127.0.0.1:5175/courses` → PPL study flow (port **5175** — Weathero occupies `:5173`).
 
 **Human Gate 0:** Clerk auth; `STUDYPILOT_AUTH_DISABLED=1` for pytest/eval.
 
-**Deferred until Phase B complete:** SP-042d, exam golden set, Phase E past-paper work.
+**Deferred:** SP-042d, exam golden set, Phase E past-paper work.
 
 ---
 
@@ -338,9 +340,9 @@ Brief: [DESIGN_DIRECTION_WAVE4A.md](DESIGN_DIRECTION_WAVE4A.md)
 
 | # | Priority | Item | Owner |
 |---|----------|------|-------|
-| 1 | **Phase B** | **SP-012b** — Clerk JWT middleware + dev bypass + route guards | Agent D |
-| 2 | **Phase B** | SP-012c → 012d (sequential after 012b) | Agent D + E |
-| 3 | Later | SP-042d, exam golden, Campus SP-040–046 | Phase E — defer |
+| 1 | **Phase E** | SP-042d PYQ unit classification | Defer until prioritized |
+| 2 | **Phase E** | Exam golden set (human approval) | Defer |
+| 3 | **Phase C** | SP-013 ingest queue, SP-004 latency | Platform |
 
 ---
 
@@ -350,7 +352,7 @@ Brief: [DESIGN_DIRECTION_WAVE4A.md](DESIGN_DIRECTION_WAVE4A.md)
 |------|-------|
 | Postgres | `localhost:5433` (StudyPilot; Zeref uses `5434` separately) |
 | API dev | `localhost:8002` (`scripts/start_api.ps1`; orphan may block `:8001`) |
-| Web dev | `localhost:5173` (Vite proxy → API `:8002`) |
+| Web dev | `localhost:5175` preferred (`npm run dev -- --port 5175`; Weathero may occupy `:5173`) |
 | `rrf_output_top_k` | **24** |
 | `min_rerank_score` | **0.35** |
 
