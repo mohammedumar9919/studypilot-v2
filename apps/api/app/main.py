@@ -8,6 +8,7 @@ from starlette.responses import StreamingResponse
 
 from app.config import settings
 from app.database import get_session
+from app.deps.auth import AuthContext, get_auth_context, require_course_access, require_course_access_dep, require_document_access_dep
 from app.models import Course
 from app.services.course_outline import get_course_outline, rebuild_course_outline, save_course_outline
 from app.services.exam.topic_frequency import count_parsed_questions
@@ -191,7 +192,12 @@ def _resolve_retrieval_scope(
 
 
 @app.post("/api/v1/query", response_model=QueryResponse)
-def query(body: QueryRequest, session: Session = Depends(get_session)) -> QueryResponse:
+def query(
+    body: QueryRequest,
+    session: Session = Depends(get_session),
+    auth: AuthContext = Depends(get_auth_context),
+) -> QueryResponse:
+    require_course_access(session, body.course_id, auth.workspace)
     try:
         resolved_source_ids, resolved_topic_ids = _resolve_retrieval_scope(
             session,
@@ -235,8 +241,13 @@ def query(body: QueryRequest, session: Session = Depends(get_session)) -> QueryR
 
 
 @app.post("/api/v1/query/stream")
-def query_stream(body: QueryRequest, session: Session = Depends(get_session)) -> StreamingResponse:
+def query_stream(
+    body: QueryRequest,
+    session: Session = Depends(get_session),
+    auth: AuthContext = Depends(get_auth_context),
+) -> StreamingResponse:
     """SSE stream: retrieval_complete → token deltas → done (same final shape as POST /query)."""
+    require_course_access(session, body.course_id, auth.workspace)
     try:
         resolved_source_ids, resolved_topic_ids = _resolve_retrieval_scope(
             session,
@@ -349,6 +360,7 @@ async def upload_document(
     doc_kind: str = Form(...),
     upload_intent: str | None = Form(None),
     session: Session = Depends(get_session),
+    _course: Course = Depends(require_course_access_dep),
 ) -> DocumentUploadResponse:
     """Multipart PDF upload → synchronous ingest (v1 pilot)."""
     try:
@@ -371,7 +383,11 @@ async def upload_document(
 
 
 @app.get("/api/v1/courses/{course_id}/exam/status")
-def exam_status(course_id: str, session: Session = Depends(get_session)) -> dict:
+def exam_status(
+    course_id: str,
+    session: Session = Depends(get_session),
+    _course: Course = Depends(require_course_access_dep),
+) -> dict:
     """Read-only exam index / heatmap readiness (no LLM)."""
     result = compute_exam_status(session, course_id)
     if not result.get("found"):
@@ -384,6 +400,7 @@ def exam_topic_frequency(
     course_id: str,
     detail: str | None = None,
     session: Session = Depends(get_session),
+    _course: Course = Depends(require_course_access_dep),
 ) -> dict:
     """Read-only PYQ topic/unit frequency (seed + keyword; no LLM)."""
     include_sections = detail == "sections"
@@ -394,7 +411,11 @@ def exam_topic_frequency(
 
 
 @app.get("/api/v1/courses/{course_id}/documents")
-def course_documents(course_id: str, session: Session = Depends(get_session)) -> dict:
+def course_documents(
+    course_id: str,
+    session: Session = Depends(get_session),
+    _course: Course = Depends(require_course_access_dep),
+) -> dict:
     """Read-only ingested document list for Flex Study source picker (no LLM)."""
     result = get_course_documents(session, course_id)
     if result is None:
@@ -403,7 +424,11 @@ def course_documents(course_id: str, session: Session = Depends(get_session)) ->
 
 
 @app.get("/api/v1/courses/{course_id}/study-layout")
-def course_study_layout(course_id: str, session: Session = Depends(get_session)) -> dict:
+def course_study_layout(
+    course_id: str,
+    session: Session = Depends(get_session),
+    _course: Course = Depends(require_course_access_dep),
+) -> dict:
     """Read-only Flex Study sidebar mode + ingested document sources (no LLM)."""
     result = get_study_layout(session, course_id)
     if result is None:
@@ -412,7 +437,11 @@ def course_study_layout(course_id: str, session: Session = Depends(get_session))
 
 
 @app.get("/api/v1/courses/{course_id}/course-map-eligibility")
-def course_map_eligibility(course_id: str, session: Session = Depends(get_session)) -> dict:
+def course_map_eligibility(
+    course_id: str,
+    session: Session = Depends(get_session),
+    _course: Course = Depends(require_course_access_dep),
+) -> dict:
     """Read-only Course Map promotion eligibility."""
     result = get_course_map_eligibility(session, course_id)
     if result is None:
@@ -421,7 +450,11 @@ def course_map_eligibility(course_id: str, session: Session = Depends(get_sessio
 
 
 @app.post("/api/v1/courses/{course_id}/course-map/promote")
-def course_map_promote(course_id: str, session: Session = Depends(get_session)) -> dict:
+def course_map_promote(
+    course_id: str,
+    session: Session = Depends(get_session),
+    _course: Course = Depends(require_course_access_dep),
+) -> dict:
     """Promote eligible corpus/organized course to mapped Course Map mode."""
     try:
         result = promote_course_map(session, course_id)
@@ -449,7 +482,11 @@ def course_map_promote(course_id: str, session: Session = Depends(get_session)) 
 
 
 @app.post("/api/v1/courses/{course_id}/course-map/rebuild-outline")
-def course_map_rebuild_outline(course_id: str, session: Session = Depends(get_session)) -> dict:
+def course_map_rebuild_outline(
+    course_id: str,
+    session: Session = Depends(get_session),
+    _course: Course = Depends(require_course_access_dep),
+) -> dict:
     """Re-extract syllabus TOC for stuck mapped courses (no structure_mode change)."""
     try:
         result = rebuild_course_map_outline(session, course_id)
@@ -469,7 +506,11 @@ def course_map_rebuild_outline(course_id: str, session: Session = Depends(get_se
 
 
 @app.get("/api/v1/courses/{course_id}/study-topics")
-def get_study_topics(course_id: str, session: Session = Depends(get_session)) -> dict:
+def get_study_topics(
+    course_id: str,
+    session: Session = Depends(get_session),
+    _course: Course = Depends(require_course_access_dep),
+) -> dict:
     """List user-defined study topics for organized mode."""
     topics = list_study_topics(session, course_id)
     if topics is None:
@@ -485,6 +526,7 @@ def post_study_topic(
     course_id: str,
     body: dict,
     session: Session = Depends(get_session),
+    _course: Course = Depends(require_course_access_dep),
 ) -> dict:
     """Create a study topic."""
     try:
@@ -506,6 +548,7 @@ def post_study_topics_bulk(
     course_id: str,
     body: dict,
     session: Session = Depends(get_session),
+    _course: Course = Depends(require_course_access_dep),
 ) -> dict:
     """Create topic stubs in bulk; promotes corpus → organized."""
     raw_titles = body.get("titles")
@@ -534,6 +577,7 @@ def patch_structure_mode(
     course_id: str,
     body: dict,
     session: Session = Depends(get_session),
+    _course: Course = Depends(require_course_access_dep),
 ) -> dict:
     """Set structure_mode; fixture courses (PPL / YAML) cannot demote to corpus or organized."""
     try:
@@ -559,6 +603,7 @@ def patch_study_topic(
     topic_id: uuid.UUID,
     body: dict,
     session: Session = Depends(get_session),
+    _course: Course = Depends(require_course_access_dep),
 ) -> dict:
     """Update a study topic title or sort order."""
     try:
@@ -581,6 +626,7 @@ def remove_study_topic(
     course_id: str,
     topic_id: uuid.UUID,
     session: Session = Depends(get_session),
+    _course: Course = Depends(require_course_access_dep),
 ) -> None:
     """Delete a study topic (documents.topic_id set null via FK)."""
     try:
@@ -590,7 +636,11 @@ def remove_study_topic(
 
 
 @app.get("/api/v1/courses/{course_id}/structure")
-def get_course_structure_route(course_id: str, session: Session = Depends(get_session)) -> dict:
+def get_course_structure_route(
+    course_id: str,
+    session: Session = Depends(get_session),
+    _course: Course = Depends(require_course_access_dep),
+) -> dict:
     """Return persisted course units/subtopics tree (SP-053a)."""
     result = get_course_structure(session, course_id)
     if result is None:
@@ -603,6 +653,7 @@ def post_structure_import_paste(
     course_id: str,
     body: dict,
     session: Session = Depends(get_session),
+    _course: Course = Depends(require_course_access_dep),
 ) -> dict:
     """Preview pasted unit/subtopic structure without persisting."""
     try:
@@ -619,6 +670,7 @@ def post_structure_import_syllabus(
     course_id: str,
     body: dict | None = None,
     session: Session = Depends(get_session),
+    _course: Course = Depends(require_course_access_dep),
 ) -> dict:
     """Preview syllabus-derived structure without persisting."""
     payload = body or {}
@@ -645,6 +697,7 @@ def post_structure_confirm(
     course_id: str,
     body: dict,
     session: Session = Depends(get_session),
+    _course: Course = Depends(require_course_access_dep),
 ) -> dict:
     """Persist confirmed structure and set structure_mode=organized."""
     try:
@@ -662,6 +715,7 @@ def put_unit_documents(
     unit_id: uuid.UUID,
     body: dict,
     session: Session = Depends(get_session),
+    _course: Course = Depends(require_course_access_dep),
 ) -> dict:
     """Replace document assignments for a course unit (M2M)."""
     try:
@@ -680,6 +734,7 @@ def put_part_documents(
     part_id: uuid.UUID,
     body: dict,
     session: Session = Depends(get_session),
+    _course: Course = Depends(require_course_access_dep),
 ) -> dict:
     """Replace document assignments for a course part (M2M)."""
     try:
@@ -698,6 +753,7 @@ def put_subtopic_documents(
     subtopic_id: uuid.UUID,
     body: dict,
     session: Session = Depends(get_session),
+    _course: Course = Depends(require_course_access_dep),
 ) -> dict:
     """Replace document assignments for a course subtopic (M2M)."""
     try:
@@ -715,6 +771,7 @@ def patch_document_topic(
     document_id: uuid.UUID,
     body: dict,
     session: Session = Depends(get_session),
+    _document=Depends(require_document_access_dep),
 ) -> dict:
     """Assign or clear study topic on a document."""
     raw_topic_id = body.get("topic_id")
@@ -742,7 +799,11 @@ def patch_document_topic(
 
 
 @app.get("/api/v1/courses/{course_id}/outline")
-def course_outline(course_id: str, session: Session = Depends(get_session)) -> dict:
+def course_outline(
+    course_id: str,
+    session: Session = Depends(get_session),
+    _course: Course = Depends(require_course_access_dep),
+) -> dict:
     """Read-only course TOC from fixture, upload, or auto-stub (no LLM)."""
     result = get_course_outline(session, course_id)
     if result is None:
@@ -755,6 +816,7 @@ def upload_course_outline(
     course_id: str,
     body: dict,
     session: Session = Depends(get_session),
+    _course: Course = Depends(require_course_access_dep),
 ) -> dict:
     """Upload outline JSON matching DocumentOutline shape (overrides auto-stub)."""
     try:
@@ -766,7 +828,11 @@ def upload_course_outline(
 
 
 @app.post("/api/v1/courses/{course_id}/outline/rebuild", status_code=201)
-def rebuild_course_outline_route(course_id: str, session: Session = Depends(get_session)) -> dict:
+def rebuild_course_outline_route(
+    course_id: str,
+    session: Session = Depends(get_session),
+    _course: Course = Depends(require_course_access_dep),
+) -> dict:
     """Re-extract outline from ingested notes PDFs (bookmarks or text TOC)."""
     try:
         return rebuild_course_outline(session, course_id)

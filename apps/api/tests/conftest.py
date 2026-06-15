@@ -1,15 +1,27 @@
 import os
+
+os.environ.setdefault("STUDYPILOT_AUTH_DISABLED", "1")
+
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import settings
+from app.models import Course
+from app.services.workspaces import SYSTEM_DEMO_WORKSPACE_ID
 
 API_ROOT = Path(__file__).resolve().parents[1]
+
+
+def add_test_course(session: Session, course_id: str, name: str, **kwargs) -> Course:
+    workspace_id = kwargs.pop("workspace_id", SYSTEM_DEMO_WORKSPACE_ID)
+    course = Course(id=course_id, name=name, workspace_id=workspace_id, **kwargs)
+    session.add(course)
+    return course
 
 
 def _db_available() -> bool:

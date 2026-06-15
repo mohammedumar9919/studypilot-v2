@@ -1,8 +1,10 @@
 # API & schema contracts (frozen)
 
-**Version:** 1.4.0  
+**Version:** 1.5.0  
 **Status:** Frozen for Phase 1 parallel work (Agent B ingest ∥ Agent C retrieval prep).  
 **Change process:** Orchestrator + human approval only. Bump version and notify all active agents.
+
+**1.5.0 (2026-06-14 — SP-012b):** Clerk JWT auth on all `/api/v1/courses/{course_id}/...`, `/api/v1/query`, `/api/v1/query/stream`, and `PATCH /api/v1/documents/{document_id}`. `/health` remains public. Dev bypass: `STUDYPILOT_AUTH_DISABLED=1` when `environment=development` skips Bearer verification and scopes requests to System Demo workspace (`auth_disabled()`). Production requires `Authorization: Bearer <Clerk session JWT>`; invalid/missing token → **401**; course not in active workspace → **404**.
 
 **1.4.0 (2026-06-14 — SP-012a):** Additive workspace schema: `users`, `workspaces`, `workspace_members`. `courses.workspace_id` NOT NULL FK → `workspaces` (migration backfills existing courses to System Demo workspace `slug=system-demo`, fixed UUID `00000000-0000-4000-a000-000000000001`). Helpers: `get_or_create_system_demo_workspace()`, `ensure_course_workspace()`. **Route guards and auth middleware deferred to SP-012b** — all existing API routes remain unauthenticated in this slice.
 
@@ -56,7 +58,39 @@ Internal service (`app/services/workspaces.py`); no HTTP routes in this slice.
 | `ensure_course_workspace(session, course)` | Assigns demo workspace when `course.workspace_id` is unset |
 | `list_workspace_courses(session, workspace_id)` | Courses scoped to one workspace |
 
-**SP-012b (next):** Clerk JWT middleware + `require_course_access` on all `/api/v1/courses/{course_id}/...` and `/api/v1/query*` routes. Until then, routes remain unauthenticated.
+**SP-012b (done):** Clerk JWT middleware + `require_course_access` on all `/api/v1/courses/{course_id}/...` and `/api/v1/query*` routes. See **Authentication** below.
+
+---
+
+## Authentication (SP-012b)
+
+| Route pattern | Auth |
+|---------------|------|
+| `GET /health` | **Public** — no Bearer token |
+| `/api/v1/courses/{course_id}/...` | Bearer JWT (or dev bypass) + course must belong to active workspace |
+| `POST /api/v1/query`, `POST /api/v1/query/stream` | Bearer JWT (or dev bypass) + `course_id` in body must belong to active workspace |
+| `PATCH /api/v1/documents/{document_id}` | Bearer JWT (or dev bypass) + document's course must belong to active workspace |
+
+**Header:** `Authorization: Bearer <Clerk session JWT>`
+
+**Config (`app/config.py`):**
+
+| Setting | Env | Purpose |
+|---------|-----|---------|
+| `clerk_jwks_url` | `CLERK_JWKS_URL` | JWKS endpoint for JWT signature verification |
+| `clerk_issuer` | `CLERK_ISSUER` | Optional JWT `iss` claim validation |
+| `studypilot_auth_disabled` | `STUDYPILOT_AUTH_DISABLED=1` | Dev/test bypass (requires `environment=development`) |
+
+**Dev bypass:** When `settings.auth_disabled()` is true (`environment=development` **and** `STUDYPILOT_AUTH_DISABLED=1`), routes accept requests without `Authorization`. Active workspace is always System Demo; dev user `clerk_user_id=dev-bypass` is created on first request.
+
+**Errors:**
+
+| Condition | Status |
+|-----------|--------|
+| Auth enabled, missing/invalid Bearer | **401** |
+| Course/document not in active workspace | **404** (`Course not found: {course_id}`) |
+
+**Modules:** `app/auth/clerk_jwt.py` (`verify_clerk_jwt`), `app/deps/auth.py` (`AuthContext`, `require_course_access_dep`).
 
 ---
 

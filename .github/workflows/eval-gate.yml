@@ -56,6 +56,8 @@ jobs:
         working-directory: apps/api
         env:
           DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+          STUDYPILOT_AUTH_DISABLED: "1"
+          ENVIRONMENT: development
         run: python -m pytest -v --tb=short -k "not test_study_retrieval and not test_ooc_question and not test_ingest"
       - uses: actions/setup-node@v4
         with:
