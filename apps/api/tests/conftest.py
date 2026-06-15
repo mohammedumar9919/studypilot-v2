@@ -48,15 +48,24 @@ def db_session(migrated_db):
         "chunks",
         "chunk_parents",
         "exam_questions",
+        "document_part_links",
         "document_subtopic_links",
         "document_unit_links",
         "course_subtopics",
+        "course_parts",
         "course_units",
         "documents",
         "study_topics",
         "courses",
+        "workspace_members",
+        "users",
+        "workspaces",
     ):
         session.execute(text(f"TRUNCATE {table} CASCADE"))
+    session.commit()
+    from app.services.workspaces import get_or_create_system_demo_workspace
+
+    get_or_create_system_demo_workspace(session)
     session.commit()
     try:
         yield session

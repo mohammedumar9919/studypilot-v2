@@ -9,6 +9,47 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    clerk_user_id: Mapped[str | None] = mapped_column(String(128), unique=True, nullable=True)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    workspace_memberships: Mapped[list["WorkspaceMember"]] = relationship(back_populates="user")
+
+
+class Workspace(Base):
+    __tablename__ = "workspaces"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    slug: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    members: Mapped[list["WorkspaceMember"]] = relationship(back_populates="workspace")
+    courses: Mapped[list["Course"]] = relationship(back_populates="workspace")
+
+
+class WorkspaceMember(Base):
+    __tablename__ = "workspace_members"
+
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    role: Mapped[str] = mapped_column(String(32), nullable=False, default="member", server_default="member")
+
+    workspace: Mapped["Workspace"] = relationship(back_populates="members")
+    user: Mapped["User"] = relationship(back_populates="workspace_memberships")
+
+
 class Course(Base):
     __tablename__ = "courses"
 
@@ -16,8 +57,14 @@ class Course(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     outline_data: Mapped[dict | None] = mapped_column(JSONB)
     structure_mode: Mapped[str] = mapped_column(String(32), nullable=False, default="corpus", server_default="corpus")
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workspaces.id"),
+        nullable=False,
+        index=True,
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
+    workspace: Mapped["Workspace"] = relationship(back_populates="courses")
     study_topics: Mapped[list["StudyTopic"]] = relationship(back_populates="course")
     course_units: Mapped[list["CourseUnit"]] = relationship(back_populates="course")
 
@@ -265,3 +312,4 @@ Index("idx_course_subtopics_part_sort", CourseSubtopic.part_id, CourseSubtopic.s
 Index("idx_document_unit_links_unit_id", DocumentUnitLink.unit_id)
 Index("idx_document_subtopic_links_subtopic_id", DocumentSubtopicLink.subtopic_id)
 Index("idx_document_part_links_part_id", DocumentPartLink.part_id)
+Index("idx_courses_workspace_id", Course.workspace_id, Course.id)

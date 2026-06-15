@@ -1,8 +1,10 @@
 # API & schema contracts (frozen)
 
-**Version:** 1.3.0  
+**Version:** 1.4.0  
 **Status:** Frozen for Phase 1 parallel work (Agent B ingest ∥ Agent C retrieval prep).  
 **Change process:** Orchestrator + human approval only. Bump version and notify all active agents.
+
+**1.4.0 (2026-06-14 — SP-012a):** Additive workspace schema: `users`, `workspaces`, `workspace_members`. `courses.workspace_id` NOT NULL FK → `workspaces` (migration backfills existing courses to System Demo workspace `slug=system-demo`, fixed UUID `00000000-0000-4000-a000-000000000001`). Helpers: `get_or_create_system_demo_workspace()`, `ensure_course_workspace()`. **Route guards and auth middleware deferred to SP-012b** — all existing API routes remain unauthenticated in this slice.
 
 **1.3.0 (2026-06-14 — SP-053b):** Document M2M assignment APIs for units/parts/subtopics (`PUT .../structure/{units|parts|subtopics}/{id}/documents`). GET structure returns populated `document_ids` (including subtopics). Query/stream body adds optional `unit_ids`, `part_ids`, `subtopic_ids` (study presets only); mutually exclusive with `source_ids` and `topic_ids`. Structure scope expands to `document_id` set via M2M links + inheritance (subtopic → part → unit; part → unit + subtopics; unit → full subtree) and filters retrieval via existing `document_ids` SQL filter (hybrid RRF unchanged).
 
@@ -20,7 +22,10 @@ Owned by orchestrator. Workers **read**; propose migrations via orchestrator onl
 
 | Table | Purpose |
 |-------|---------|
-| `courses` | `id` (str PK), `name`, `outline_data` (JSONB), `structure_mode` (`corpus` \| `organized` \| `mapped`) |
+| `users` | `id` (UUID PK), `clerk_user_id` (String 128, unique nullable), `email`, `display_name`, `created_at` (SP-012a) |
+| `workspaces` | `id` (UUID PK), `name`, `slug` (String 128 unique), `created_at` (SP-012a) |
+| `workspace_members` | Composite PK (`workspace_id`, `user_id`); `role` (String 32, default `member`) (SP-012a) |
+| `courses` | `id` (str PK), `name`, `outline_data` (JSONB), `structure_mode` (`corpus` \| `organized` \| `mapped`), `workspace_id` NOT NULL FK → `workspaces` (SP-012a; migration backfills to System Demo `slug=system-demo`) |
 | `study_topics` | `id` (UUID PK), `course_id` FK, `title`, `sort_order` — **deprecated** in favor of `course_units`/`course_subtopics`; retained for SP-051b compat |
 | `course_units` | `id` (UUID PK), `course_id` FK, `title`, `sort_order` (SP-053a) |
 | `course_parts` | `id` (UUID PK), `unit_id` FK → `course_units`, `title`, `sort_order` (SP-053a.1) |
@@ -38,6 +43,20 @@ Owned by orchestrator. Workers **read**; propose migrations via orchestrator onl
 **document.status:** `pending` | `processing` | `ready` | `failed`
 
 **Study retrieval filter (mandatory):** `doc_kind IN ('notes', 'textbook', 'syllabus')` — exclude `past_paper`.
+
+### Workspace helpers (SP-012a)
+
+Internal service (`app/services/workspaces.py`); no HTTP routes in this slice.
+
+| Constant / function | Purpose |
+|---------------------|---------|
+| `SYSTEM_DEMO_WORKSPACE_ID` | Fixed UUID `00000000-0000-4000-a000-000000000001` for dev/eval tenancy |
+| `SYSTEM_DEMO_WORKSPACE_SLUG` | `system-demo` |
+| `get_or_create_system_demo_workspace(session)` | Idempotent demo workspace row |
+| `ensure_course_workspace(session, course)` | Assigns demo workspace when `course.workspace_id` is unset |
+| `list_workspace_courses(session, workspace_id)` | Courses scoped to one workspace |
+
+**SP-012b (next):** Clerk JWT middleware + `require_course_access` on all `/api/v1/courses/{course_id}/...` and `/api/v1/query*` routes. Until then, routes remain unauthenticated.
 
 ---
 
