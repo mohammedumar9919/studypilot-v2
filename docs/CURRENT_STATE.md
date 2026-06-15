@@ -315,7 +315,7 @@ Brief: [DESIGN_DIRECTION_WAVE4A.md](DESIGN_DIRECTION_WAVE4A.md)
 | SP-053c Unified Course structure UI | **DONE** (Agent E; CN + DS user UAT PASS) |
 | SP-053d Modular syllabus depth | **DONE** (Data Science 5/5 units; CN regression 45 pytest) |
 
-**Council Stage 3:** SP-012a **closed** (2026-06-02). User gate: `pytest tests/test_workspaces.py` 5/5; `alembic upgrade head` PASS.
+**Council Stage 3:** SP-012b **closed** (2026-06-02). User gate: `pytest tests/test_auth.py` 4/4; `quick_gate.ps1 -Smoke` **100% P@5 (10/10)**; commit `6a79564`.
 
 ---
 
