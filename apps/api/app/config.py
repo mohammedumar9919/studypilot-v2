@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     openrouter_dev_chat_model: str = "meta-llama/llama-3.3-70b-instruct:free"
     openrouter_chat_model: str = "deepseek/deepseek-chat"
     studypilot_llm_budget: str = "budget"
+    studypilot_retrieval_timeout_s: float = 0.0
     llm_temperature: float = 0.05
 
     clerk_jwks_url: str = ""
@@ -69,6 +70,9 @@ class Settings(BaseSettings):
         if tier is None:
             return LLM_BUDGET_TIERS["budget"]
         return tier
+
+    def retrieval_timeout_enabled(self) -> bool:
+        return self.studypilot_retrieval_timeout_s > 0
 
 
 settings = Settings()
