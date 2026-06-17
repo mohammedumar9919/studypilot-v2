@@ -242,6 +242,144 @@ def extract_pdf(path: Path, ocr_threshold: int | None = None) -> ExtractionResul
     )
 
 
+PdfAuditTier = Literal["native", "ocr", "layout_defer"]
+_MAX_AUDIT_SAMPLE_PAGES = 12
+
+
+@dataclass
+class PdfAuditResult:
+    tier: PdfAuditTier
+    page_count: int
+    sampled_pages: int
+    native_empty_ratio: float
+    multi_column_ratio: float
+    image_heavy_ratio: float
+    avg_native_chars: float
+
+    def as_quality_fields(self) -> dict[str, Any]:
+        return {
+            "audit_tier": self.tier,
+            "audit_page_count": self.page_count,
+            "audit_sampled_pages": self.sampled_pages,
+            "audit_native_empty_ratio": round(self.native_empty_ratio, 3),
+            "audit_multi_column_ratio": round(self.multi_column_ratio, 3),
+            "audit_image_heavy_ratio": round(self.image_heavy_ratio, 3),
+            "audit_avg_native_chars": round(self.avg_native_chars, 1),
+        }
+
+
+def _sample_page_indices(page_count: int, *, max_pages: int = _MAX_AUDIT_SAMPLE_PAGES) -> list[int]:
+    if page_count <= 0:
+        return []
+    if page_count <= max_pages:
+        return list(range(page_count))
+    step = max(1, page_count // max_pages)
+    indices = list(range(0, page_count, step))
+    if indices[-1] != page_count - 1:
+        indices.append(page_count - 1)
+    return indices[:max_pages]
+
+
+def _text_block_x_centers(blocks: list[dict[str, Any]]) -> list[float]:
+    centers: list[float] = []
+    for block in blocks:
+        if block.get("type") != 0:
+            continue
+        bbox = block.get("bbox")
+        if not bbox or len(bbox) < 4:
+            continue
+        centers.append((float(bbox[0]) + float(bbox[2])) / 2)
+    return centers
+
+
+def _looks_multi_column(blocks: list[dict[str, Any]], page_width: float) -> bool:
+    if page_width <= 0:
+        return False
+    centers = _text_block_x_centers(blocks)
+    if len(centers) < 8:
+        return False
+    left = sum(1 for center in centers if center < page_width * 0.45)
+    right = sum(1 for center in centers if center > page_width * 0.55)
+    return left >= 3 and right >= 3
+
+
+def classify_audit_tier(
+    *,
+    native_empty_ratio: float,
+    multi_column_ratio: float,
+    image_heavy_ratio: float,
+) -> PdfAuditTier:
+    """Route PDFs to native / OCR / layout-defer extraction paths (SP-045a)."""
+    if native_empty_ratio >= 0.75 or image_heavy_ratio >= 0.75:
+        return "ocr"
+    if multi_column_ratio >= 0.35 and native_empty_ratio < 0.5:
+        return "layout_defer"
+    if native_empty_ratio >= 0.2 or image_heavy_ratio >= 0.35:
+        return "ocr"
+    return "native"
+
+
+def reconcile_audit_tier(audit: PdfAuditResult, extraction: ExtractionResult) -> PdfAuditTier:
+    page_count = max(extraction.page_count, 1)
+    ocr_ratio = extraction.ocr_pages / page_count
+    native_ratio = extraction.nonempty_pages / page_count
+
+    if native_ratio == 0:
+        return "ocr"
+    if ocr_ratio >= 0.5:
+        return "ocr"
+    if audit.tier == "layout_defer":
+        return "layout_defer"
+    if ocr_ratio >= 0.15:
+        return "ocr"
+    if audit.tier == "native" and audit.multi_column_ratio >= 0.35:
+        return "layout_defer"
+    return audit.tier
+
+
+def audit_pdf(path: Path, ocr_threshold: int | None = None) -> PdfAuditResult:
+    """Lightweight pre-extract audit — no OCR, for ingest routing (SP-045a)."""
+    threshold = ocr_threshold if ocr_threshold is not None else settings.ocr_chars_per_page_threshold
+    doc = fitz.open(path)
+    page_count = len(doc)
+    sample_indices = _sample_page_indices(page_count)
+
+    native_chars: list[int] = []
+    multi_column_pages = 0
+    image_heavy_pages = 0
+
+    for index in sample_indices:
+        page = doc[index]
+        text = page.get_text("text", sort=True) or ""
+        char_count = len(text.strip())
+        native_chars.append(char_count)
+
+        blocks = page.get_text("dict", sort=True).get("blocks", [])
+        if _looks_multi_column(blocks, page.rect.width):
+            multi_column_pages += 1
+
+        if char_count <= threshold and page.get_images():
+            image_heavy_pages += 1
+
+    doc.close()
+
+    sampled = max(len(sample_indices), 1)
+    native_empty_ratio = sum(1 for count in native_chars if count <= threshold) / sampled
+    return PdfAuditResult(
+        tier=classify_audit_tier(
+            native_empty_ratio=native_empty_ratio,
+            multi_column_ratio=multi_column_pages / sampled,
+            image_heavy_ratio=image_heavy_pages / sampled,
+        ),
+        page_count=page_count,
+        sampled_pages=len(sample_indices),
+        native_empty_ratio=native_empty_ratio,
+        multi_column_ratio=multi_column_pages / sampled,
+        image_heavy_ratio=image_heavy_pages / sampled,
+        avg_native_chars=sum(native_chars) / sampled,
+    )
+
+
 @dataclass
 class OutlineSection:
     title: str
