@@ -225,6 +225,35 @@ class Document(Base):
         back_populates="document",
         cascade="all, delete-orphan",
     )
+    ingest_jobs: Mapped[list["IngestJob"]] = relationship(
+        back_populates="document",
+        cascade="all, delete-orphan",
+    )
+
+
+class IngestJob(Base):
+    __tablename__ = "ingest_jobs"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    workspace_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="queued", server_default="queued")
+    phase: Mapped[str] = mapped_column(String(32), nullable=False, default="full", server_default="full")
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    document: Mapped["Document"] = relationship(back_populates="ingest_jobs")
+    workspace: Mapped["Workspace | None"] = relationship()
 
 
 class ExamQuestion(Base):
@@ -313,3 +342,4 @@ Index("idx_document_unit_links_unit_id", DocumentUnitLink.unit_id)
 Index("idx_document_subtopic_links_subtopic_id", DocumentSubtopicLink.subtopic_id)
 Index("idx_document_part_links_part_id", DocumentPartLink.part_id)
 Index("idx_courses_workspace_id", Course.workspace_id, Course.id)
+Index("idx_ingest_jobs_status_created", IngestJob.status, IngestJob.created_at)

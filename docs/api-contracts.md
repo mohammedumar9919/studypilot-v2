@@ -1,8 +1,12 @@
 # API & schema contracts (frozen)
 
-**Version:** 1.6.0  
+**Version:** 1.8.0  
 **Status:** Frozen for Phase 1 parallel work (Agent B ingest ∥ Agent C retrieval prep).  
 **Change process:** Orchestrator + human approval only. Bump version and notify all active agents.
+
+**1.8.0 (2026-06-15 — SP-013b):** Async upload returns HTTP **202** with `{document_id, job_id, status: "queued", ...}` when `STUDYPILOT_INGEST_ASYNC=1`. New `GET /api/v1/documents/{document_id}/ingest-status` returns `{document_id, job_id?, status, phase, progress_pct?, error?, document_status?}` (workspace-scoped via document course). Sync path (`STUDYPILOT_INGEST_ASYNC=0`, default) unchanged: **201** + `status: "ready"`.
+
+**1.7.0 (2026-06-15 — SP-013a):** Postgres-backed `ingest_jobs` queue (Alembic 008). `enqueue_ingest_job()`, `claim_next_job()` (`FOR UPDATE SKIP LOCKED`), `complete_job()` / `fail_job()`. CLI worker: `python -m app.cli.run_ingest_worker [--once]`. Feature flag `STUDYPILOT_INGEST_ASYNC=1` enqueues on upload instead of sync `ingest_document()` (default **`0`** for pytest).
 
 **1.6.0 (2026-06-14 — SP-012c):** Workspace-scoped course APIs: `GET /api/v1/workspaces/me`, `GET /api/v1/workspaces/me/courses`, `POST /api/v1/workspaces/me/courses`. Course ids validated with `^[A-Z0-9][A-Z0-9_-]{0,62}$` (**422** on invalid). Duplicate id in active workspace or id registered in another workspace → **409**. Upload route `POST /api/v1/courses/{course_id}/documents` auto-creates missing courses in the active workspace (same validation/conflict rules); existing courses still require workspace access (**404** when course belongs to another workspace). `ensure_course(..., workspace_id=...)` defaults to System Demo for CLI compat.
 
@@ -38,11 +42,16 @@ Owned by orchestrator. Workers **read**; propose migrations via orchestrator onl
 | `document_part_links` | Composite PK (`document_id`, `part_id`) — M2M assignment schema only (SP-053a.1); API wiring SP-053b |
 | `document_subtopic_links` | Composite PK (`document_id`, `subtopic_id`) — M2M assignment (SP-053b) |
 | `documents` | `course_id`, `filename`, `doc_kind`, `status`, `page_count`, `extraction_quality` (JSONB), `topic_id` (nullable FK → `study_topics`) |
+| `ingest_jobs` | `id` (UUID PK), `document_id` FK → `documents`, `workspace_id` nullable FK → `workspaces`, `status`, `phase`, `error`, `created_at`, `updated_at` (SP-013a) |
 | `chunk_parents` | Page-range parent text for hierarchical RAG |
 | `chunks` | Child chunks; `page`, `text`, `text_tsv` (generated tsvector), `metadata` JSONB |
 | `chunk_embeddings` | `embedding` Vector(384), `embedding_model`, HNSW index |
 
 **doc_kind enum (ingest CLI):** `notes` | `textbook` | `syllabus` | `past_paper`
+
+**ingest_jobs.status:** `queued` | `processing` | `completed` | `failed`
+
+**ingest_jobs.phase:** `fast` | `heavy` | `full` (default `full` in SP-013a; two-phase routing in SP-045b)
 
 **document.status:** `pending` | `processing` | `ready` | `failed`
 
@@ -212,9 +221,9 @@ def ingest_document(
 
 **Ingest behavior:** `upload_intent=quick` on `notes` skips auto TOC extraction into `courses.outline_data` (corpus layout). `topic` stores metadata only (no topic-scoped retrieval in 050c). Chunking, embeddings, PYQ parse, and PPL fixture outlines unchanged.
 
-**Behavior:** Save PDF to server upload dir → call `ingest_document()` synchronously (v1 pilot). Auto-creates course in active workspace when missing (SP-012c); existing courses require workspace access. Re-upload same `(course_id, filename, doc_kind)` replaces chunks (idempotent).
+**Behavior:** Save PDF to server upload dir → sync `ingest_document()` when `STUDYPILOT_INGEST_ASYNC=0` (default), or enqueue job when `STUDYPILOT_INGEST_ASYNC=1`. Auto-creates course in active workspace when missing (SP-012c); existing courses require workspace access. Re-upload same `(course_id, filename, doc_kind)` replaces chunks (idempotent).
 
-**Response (201):**
+**Response (201 — sync, default):**
 
 ```json
 {
@@ -229,6 +238,24 @@ def ingest_document(
 }
 ```
 
+**Response (202 — async, `STUDYPILOT_INGEST_ASYNC=1`):**
+
+```json
+{
+  "document_id": "uuid",
+  "course_id": "PPL",
+  "filename": "PPL notes.pdf",
+  "doc_kind": "notes",
+  "status": "queued",
+  "job_id": "uuid",
+  "page_count": null,
+  "upload_intent": "quick",
+  "extraction_quality": { "upload_intent": "quick" }
+}
+```
+
+Poll progress: `GET /api/v1/documents/{document_id}/ingest-status` (see below).
+
 **Errors:**
 
 | Status | When |
@@ -236,14 +263,69 @@ def ingest_document(
 | 400 | Invalid `doc_kind`, invalid `upload_intent`, `upload_intent`/`doc_kind` mismatch, non-PDF filename, unsupported content type |
 | 422 | Ingest failed (`status: failed` or pipeline exception) — `detail` string |
 
-**Future:** Async job queue if ingest routinely exceeds ~30s (not v1).
+### Ingest job queue (SP-013a / SP-013b)
+
+**Feature flag:** `STUDYPILOT_INGEST_ASYNC=1` — upload path enqueues instead of sync `ingest_document()`. Default **`0`** (sync) for pytest/eval.
+
+**Python helpers (`app/services/ingest_queue.py`):**
+
+```python
+def enqueue_ingest_job(
+    session: Session,
+    *,
+    document_id: uuid.UUID,
+    workspace_id: uuid.UUID | None = None,
+    phase: str = "full",
+) -> IngestJob: ...
+
+def claim_next_job(session: Session) -> IngestJob | None: ...  # FOR UPDATE SKIP LOCKED
+
+def complete_job(session: Session, job: IngestJob) -> None: ...
+def fail_job(session: Session, job: IngestJob, error: str) -> None: ...
+def get_ingest_status(session: Session, document_id: uuid.UUID) -> dict | None: ...
+```
+
+**Worker CLI:** `python -m app.cli.run_ingest_worker [--once]` — claims queued job → `ingest_document()` → marks `completed`/`failed`.
+
+**Idempotency:** Re-enqueue same `document_id` while job is `queued` or `processing` returns existing active job (no duplicate).
+
+**Async upload (`STUDYPILOT_INGEST_ASYNC=1`):** Creates `documents.status=pending`, enqueues job; HTTP **202** + `status: "queued"` + `job_id`. Worker sets document `ready`/`failed` after pipeline.
+
+### Ingest status poll (SP-013b)
+
+`GET /api/v1/documents/{document_id}/ingest-status`
+
+**Auth:** Workspace-scoped via document's course (same as `PATCH /api/v1/documents/{document_id}`).
+
+**Response (200):**
+
+```json
+{
+  "document_id": "uuid",
+  "job_id": "uuid",
+  "status": "queued",
+  "phase": "full",
+  "progress_pct": 0,
+  "error": null,
+  "document_status": "pending"
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `status` | Job status when job exists (`queued` \| `processing` \| `completed` \| `failed`); else document `status` |
+| `phase` | Job phase (`fast` \| `heavy` \| `full`); `full` when no job |
+| `progress_pct` | `0` queued, `50` processing, `100` ready, `null` on failure |
+| `document_status` | Underlying `documents.status` (`pending` \| `processing` \| `ready` \| `failed`) |
+
+**Errors:** 404 when document missing or course not in caller's workspace.
 
 **Manual verify:**
 
 ```powershell
-curl.exe -X POST http://localhost:8001/api/v1/courses/PPL/documents `
-  -F "file=@C:\Projects\studypilot-v2\eval\fixtures\ppl\PPL notes.pdf" `
-  -F "doc_kind=notes"
+cd C:\Projects\studypilot-v2\apps\api
+$env:STUDYPILOT_INGEST_ASYNC = "1"
+python -m app.cli.run_ingest_worker --once
 ```
 
 ### PDF extract

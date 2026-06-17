@@ -4,7 +4,7 @@ from typing import Any
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
-from starlette.responses import StreamingResponse
+from starlette.responses import JSONResponse, StreamingResponse
 
 from app.config import settings
 from app.database import get_session
@@ -13,6 +13,7 @@ from app.models import Course
 from app.services.course_outline import get_course_outline, rebuild_course_outline, save_course_outline
 from app.services.exam.topic_frequency import count_parsed_questions
 from app.services.document_upload import IngestFailedError, UploadValidationError, upload_and_ingest_document
+from app.services.ingest_queue import get_ingest_status
 from app.services.exam.exam_status import compute_exam_status
 from app.services.exam.topic_frequency import compute_topic_frequency
 from app.services.course_map import (
@@ -355,6 +356,17 @@ class DocumentUploadResponse(BaseModel):
     page_count: int | None = None
     upload_intent: str | None = None
     extraction_quality: dict | None = None
+    job_id: str | None = None
+
+
+class IngestStatusResponse(BaseModel):
+    document_id: str
+    job_id: str | None = None
+    status: str
+    phase: str
+    progress_pct: int | None = None
+    error: str | None = None
+    document_status: str | None = None
 
 
 class WorkspaceMeResponse(BaseModel):
@@ -422,8 +434,11 @@ def create_my_workspace_course(
 
 @app.post(
     "/api/v1/courses/{course_id}/documents",
-    status_code=201,
-    response_model=DocumentUploadResponse,
+    response_model=None,
+    responses={
+        201: {"model": DocumentUploadResponse, "description": "Synchronous ingest complete"},
+        202: {"model": DocumentUploadResponse, "description": "Document queued for async ingest"},
+    },
 )
 async def upload_document(
     course_id: str,
@@ -432,8 +447,8 @@ async def upload_document(
     upload_intent: str | None = Form(None),
     session: Session = Depends(get_session),
     auth: AuthContext = Depends(get_auth_context),
-) -> DocumentUploadResponse:
-    """Multipart PDF upload → synchronous ingest (v1 pilot)."""
+):
+    """Multipart PDF upload — sync ingest (201) or async queue (202) per STUDYPILOT_INGEST_ASYNC."""
     existing = session.get(Course, course_id)
     if existing is not None:
         require_course_access(session, course_id, auth.workspace)
@@ -462,7 +477,25 @@ async def upload_document(
     except IngestFailedError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    return DocumentUploadResponse(**result)
+    if result.get("job_id"):
+        return JSONResponse(status_code=202, content=result)
+    return JSONResponse(status_code=201, content=result)
+
+
+@app.get(
+    "/api/v1/documents/{document_id}/ingest-status",
+    response_model=IngestStatusResponse,
+)
+def document_ingest_status(
+    document_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    _document=Depends(require_document_access_dep),
+) -> IngestStatusResponse:
+    """Poll async ingest progress for a document."""
+    status = get_ingest_status(session, document_id)
+    if status is None:
+        raise HTTPException(status_code=404, detail=f"Document not found: {document_id}")
+    return IngestStatusResponse(**status)
 
 
 @app.get("/api/v1/courses/{course_id}/exam/status")

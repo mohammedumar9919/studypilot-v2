@@ -16,6 +16,48 @@ from app.services.workspaces import SYSTEM_DEMO_WORKSPACE_ID
 
 API_ROOT = Path(__file__).resolve().parents[1]
 
+# Serialize TRUNCATE when multiple pytest processes share studypilot_test.
+_TEST_DB_ADVISORY_LOCK = 424242
+
+
+def _truncate_test_tables(session: Session) -> None:
+    session.execute(text(f"SELECT pg_advisory_lock({_TEST_DB_ADVISORY_LOCK})"))
+    try:
+        for table in (
+            "chunk_embeddings",
+            "chunks",
+            "chunk_parents",
+            "exam_questions",
+            "document_part_links",
+            "document_subtopic_links",
+            "document_unit_links",
+            "ingest_jobs",
+            "course_subtopics",
+            "course_parts",
+            "course_units",
+            "documents",
+            "study_topics",
+            "courses",
+            "workspace_members",
+            "users",
+            "workspaces",
+        ):
+            session.execute(text(f"TRUNCATE {table} CASCADE"))
+        session.commit()
+        from app.services.workspaces import get_or_create_system_demo_workspace
+
+        get_or_create_system_demo_workspace(session)
+        session.commit()
+    finally:
+        session.execute(text(f"SELECT pg_advisory_unlock({_TEST_DB_ADVISORY_LOCK})"))
+        session.commit()
+
+
+@pytest.fixture(autouse=True)
+def _default_sync_ingest(monkeypatch):
+    """Sync ingest is the pytest default; async tests opt in explicitly."""
+    monkeypatch.setenv("STUDYPILOT_INGEST_ASYNC", "0")
+
 
 def add_test_course(session: Session, course_id: str, name: str, **kwargs) -> Course:
     workspace_id = kwargs.pop("workspace_id", SYSTEM_DEMO_WORKSPACE_ID)
@@ -55,30 +97,7 @@ def migrated_db():
 def db_session(migrated_db):
     engine = create_engine(settings.test_database_url)
     session = sessionmaker(bind=engine)()
-    for table in (
-        "chunk_embeddings",
-        "chunks",
-        "chunk_parents",
-        "exam_questions",
-        "document_part_links",
-        "document_subtopic_links",
-        "document_unit_links",
-        "course_subtopics",
-        "course_parts",
-        "course_units",
-        "documents",
-        "study_topics",
-        "courses",
-        "workspace_members",
-        "users",
-        "workspaces",
-    ):
-        session.execute(text(f"TRUNCATE {table} CASCADE"))
-    session.commit()
-    from app.services.workspaces import get_or_create_system_demo_workspace
-
-    get_or_create_system_demo_workspace(session)
-    session.commit()
+    _truncate_test_tables(session)
     try:
         yield session
     finally:
