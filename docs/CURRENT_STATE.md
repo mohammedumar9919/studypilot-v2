@@ -1,6 +1,6 @@
 # StudyPilot v2 — Current State
 
-**Last updated:** 2026-06-02  
+**Last updated:** 2026-06-15  
 **Status owner:** Lead orchestrator (update this file after every phase gate or major eval run)
 
 This is the **single source of truth** for execution status. A new Cursor chat should read this first, then [LEAD_ORCHESTRATOR.md](LEAD_ORCHESTRATOR.md) and [COUNCIL_ORCHESTRATION.md](COUNCIL_ORCHESTRATION.md).
@@ -52,7 +52,7 @@ This is the **single source of truth** for execution status. A new Cursor chat s
 | SP-053c Unified Course structure UI (Phase S) | **DONE** | Sources \| Course structure tabs; Agent E; user UAT PASS |
 | SP-053d Modular syllabus depth (Phase S) | **DONE** | DS + CN parser; `datascience_syllabus.txt` fixture; pytest 45/45 |
 
-**Status:** **Phase B — Product shell DONE.** **NEXT:** **Phase E** (SP-042d, exam golden) **DEFERRED** until prioritized — or **Phase C** platform work.
+**Status:** **Phase B — Product shell DONE.** **Phase C — Platform slices DONE** (013a–c, 045a/b, 004a). **DEFERRED:** Phase E (SP-042d, exam golden), Phase B polish (012.5), SP-014 observability.
 
 ### Build order (product-first)
 
@@ -62,8 +62,8 @@ This is the **single source of truth** for execution status. A new Cursor chat s
 | **A.5 — Exam Truth** | **DONE** | — |
 | **S — Flex Study** | **DONE** | — |
 | **B — Full product shell** | **DONE** | SP-012a–012d complete |
-| **C — Platform** | Open | SP-013 queue, SP-045 doc router, SP-014 |
-| **E — Exam golden / PYQ** | **DEFERRED** | SP-042d, exam golden set (human approval) |
+| **C — Platform** | **DONE** (planned slices) | 013a–c, 045a/b, 004a complete; SP-014/041 deferred |
+| **E — Exam golden / PYQ** | **DEFERRED** | SP-042d, exam golden set — Human Gate 0 not approved |
 
 ---
 
@@ -336,13 +336,49 @@ Brief: [DESIGN_DIRECTION_WAVE4A.md](DESIGN_DIRECTION_WAVE4A.md)
 
 ---
 
+## Phase C — Platform (IN PROGRESS)
+
+| Slice | Status | Owner | Goal |
+|-------|--------|-------|------|
+| SP-013a | **DONE** | B + D | `ingest_jobs` schema (Alembic 008) + Postgres worker + enqueue; pytest **7/7**; smoke **100% P@5 (10/10)** |
+| SP-013b | **DONE** | D | Async upload **202** + `GET .../ingest-status`; sync **201** fallback; api-contracts **1.8.0** |
+| SP-013c | **DONE** | E | Web poll `ingest-status` + progress UI; `npm run build` PASS |
+| SP-045a | **DONE** | B | PDF audit tier (`native`/`ocr`/`layout_defer`) in `extraction_quality` |
+| SP-045b | **DONE** | B | Two-phase ingest: `fast` (native, no OCR) → `heavy` (OCR+PYQ); phase from `audit_tier` |
+| SP-004a | **DONE** | D | `retrieval_debug.timings_ms`; optional `STUDYPILOT_RETRIEVAL_TIMEOUT_S`; pytest **5/5**; smoke **100% P@5 (10/10)** |
+
+**Human Gate confirmed:** Phase C (not Phase E, not B polish).  
+**Sequential rule:** 013a → 013b → 013c (no parallel 013b + 013c).  
+**Product targets:** upload return &lt; 2s; progressive study-ready; honesty on `extraction_quality`.
+
+**Deferred within Phase C:** SP-014 observability, SP-041 LLM outline, layout tier C (Docling/Marker).
+
+**Council Stage 3 — SP-004a (closed 2026-06-17):** `pytest tests/test_query_latency_bounds.py` **5/5**; `quick_gate.ps1 -Smoke` **100% P@5 (10/10)**. No ranking/threshold changes.
+
+**Council Stage 3 — Phase C ingest (closed 2026-06-17):**
+
+| Slice | Gate |
+|-------|------|
+| SP-013b | Scoped pytest **43/43** ingest platform PASS; api-contracts **1.8.0** |
+| SP-013c | `npm run build` PASS; optional UAT `:5175` upload poll PASS |
+| SP-045a | `test_pdf_audit.py` + ingest e2e PASS |
+| SP-045b | `test_ingest_two_phase.py` **10/10** PASS |
+
+Retrieval untouched — no full eval for this closeout. Commit strategy: 3 logical commits on user request (`commit Phase C platform`).
+
+**Council Stage 3 (prior):** SP-013a **closed** (2026-06-15). `pytest tests/test_ingest_queue.py` **7/7**; `quick_gate.ps1 -Smoke` **100% P@5 (10/10)**.
+
+---
+
 ## What's NEXT
 
 | # | Priority | Item | Owner |
 |---|----------|------|-------|
-| 1 | **Phase E** | SP-042d PYQ unit classification | Defer until prioritized |
-| 2 | **Phase E** | Exam golden set (human approval) | Defer |
-| 3 | **Phase C** | SP-013 ingest queue, SP-004 latency | Platform |
+| 1 | **Commit** | `commit Phase C platform` — 3 logical commits (013a/b API, 013c web, 045a/b ingest) + SP-004a | Lead |
+| 2 | **DEFER** | SP-014 observability / RAGAS | — |
+| 3 | **DEFER** | SP-042d PYQ unit classification (Phase E) | — |
+| 5 | **DEFER** | Exam golden set (human approval) | — |
+| 6 | **DEFER** | Phase B polish (012.5: CSS, Clerk prod, port docs) | — |
 
 ---
 

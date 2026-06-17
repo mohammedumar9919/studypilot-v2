@@ -24,7 +24,7 @@
 | SP-001 | 90% precision@5 | **DONE** | **100%** (40/40) @ 0.35; see `PHASE1B_SUMMARY` |
 | SP-002 | Golden miss UI workflow | **DONE** | Dev-only via checkbox; `GOLDEN_MISSES` empty at 100% eval |
 | SP-003 | CI regression gate | **DONE** | Git LFS + `retrieval-gate` executes in CI; `api-and-web` 56/56; merge [PR #1](https://github.com/mohammedumar9919/studypilot-v2/pull/1) |
-| SP-004 | ~60s query latency | **PARTIAL** | SSE + progressive UI DONE (Wave 3); wall-clock still ~60s; Phase 4 GPU optional |
+| SP-004 | ~60s query latency | **PARTIAL** | SSE + progressive UI DONE; SP-004a adds `retrieval_debug.timings_ms` + optional retrieval timeout |
 
 ---
 
@@ -35,7 +35,7 @@
 | SP-010 | Course TOC browse (pre-query) | **DONE** | Outline API (Agent D) + `CourseOutlineSidebar` (Agent E) |
 | SP-011 | PYQ topic frequency | **DONE** | OCR + API + CLI + heatmap UI (Agent E Wave 1) |
 | SP-012 | Auth + workspace + multi-page UI | **DONE** | Phase B Wave 10 — 012a `c94ab42`, 012b `6a79564`, 012c `a93bf2b`, 012d `921a63b` |
-| SP-013 | Durable ingest queue | **OPEN** | Phase C — post Phase B |
+| SP-013 | Durable ingest queue | **DONE** | SP-013a–c complete (worker + async API + web poll) |
 | SP-014 | Observability / RAGAS | **DEFER** | After CI stable |
 | SP-015 | Exam intelligence | **DONE** | Exam preset + heatmap (SP-015 D+E) |
 | SP-016 | 95% pre-installer | **DONE** | 100% on golden set; CI lock next |

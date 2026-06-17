@@ -26,10 +26,10 @@ Hybrid retrieval invariant: **RRF + rerank + gate**; study presets exclude `past
 | A.5 — Exam Truth | **DONE** | Wave 9; frozen baseline |
 | **S — Flex Study** | **DONE** | SP-050a–053d; user UAT CN + Data Science PASS |
 | **B — Product shell** | **DONE** | SP-012a–012d; commits `c94ab42`–`921a63b` |
-| C — Platform | Open | SP-013 queue, SP-045 router, SP-014 |
-| E — Exam expansion | **DEFER** | SP-042d, exam golden — until prioritized |
+| C — Platform | **IN PROGRESS** | **ACTIVE: SP-004a**; ingest slices **013a–c, 045a/b DONE** |
+| E — Exam expansion | **DEFER** | SP-042d, exam golden — Human Gate 0 not approved |
 
-**NEXT:** Phase E (SP-042d, exam golden) **DEFERRED** — or Phase C (SP-013 ingest queue).
+**NEXT:** **Phase C — SP-004a** (query latency bounds in `pipeline.py`). Ingest platform **DONE** (013a–c, 045a/b). Phase E **DEFERRED**.
 
 ---
 
