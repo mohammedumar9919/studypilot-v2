@@ -66,6 +66,7 @@ export async function postDocumentUpload(
       throw new UploadApiError(detail, response.status)
     }
 
+    // 201 sync ready, 202 async queued (SP-013b)
     return (await response.json()) as DocumentUploadResponse
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {

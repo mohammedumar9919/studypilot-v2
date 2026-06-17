@@ -363,10 +363,21 @@ export interface DocumentUploadResponse {
   course_id: string
   filename: string
   doc_kind: DocumentKind
-  status: 'ready' | 'failed' | 'pending' | 'processing'
-  page_count: number
+  status: 'ready' | 'failed' | 'pending' | 'processing' | 'queued'
+  page_count: number | null
   upload_intent?: UploadIntent
   extraction_quality: DocumentUploadExtractionQuality | null
+  job_id?: string | null
+}
+
+export interface IngestStatusResponse {
+  document_id: string
+  job_id: string | null
+  status: string
+  phase: string
+  progress_pct: number | null
+  error: string | null
+  document_status: string | null
 }
 
 export type UploadPanelPhase = 'idle' | 'indexing' | 'success' | 'error'

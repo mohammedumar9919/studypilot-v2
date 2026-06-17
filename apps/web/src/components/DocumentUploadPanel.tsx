@@ -1,12 +1,25 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type DragEvent } from 'react'
 
-import { postDocumentUpload, UploadApiError } from '../api/uploadClient'
+import {
+  enrichUploadAfterIngest,
+  IngestPollError,
+  isAsyncQueuedUpload,
+  pollIngestStatusUntilDone,
+} from '../api/ingestStatusClient'
+import { postDocumentUpload, uploadTimeoutMinutes, UploadApiError } from '../api/uploadClient'
 import { DOCUMENT_KIND_OPTIONS } from '../constants/documentKinds'
+import {
+  resolveUploadIntent,
+  showsUploadIntentPicker,
+  UPLOAD_INTENT_OPTIONS,
+  type SelectableUploadIntent,
+} from '../constants/uploadIntents'
 import type { DocumentKind, DocumentUploadResponse, UploadPanelPhase } from '../types'
 
 interface DocumentUploadPanelProps {
   courseId: string
   disabled?: boolean
+  onCourseIdCommit: (value: string) => void
   onUploadStart?: () => void
   onUploadSuccess?: (response: DocumentUploadResponse) => void
   onPhaseChange?: (phase: UploadPanelPhase) => void
@@ -24,22 +37,38 @@ function formatElapsed(ms: number): string {
 export function DocumentUploadPanel({
   courseId,
   disabled = false,
+  onCourseIdCommit,
   onUploadStart,
   onUploadSuccess,
   onPhaseChange,
 }: DocumentUploadPanelProps) {
+  const [draftCourseId, setDraftCourseId] = useState(courseId)
   const [docKind, setDocKind] = useState<DocumentKind>('notes')
+  const [uploadIntentChoice, setUploadIntentChoice] = useState<SelectableUploadIntent>('quick')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [phase, setPhase] = useState<UploadPanelPhase>('idle')
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<DocumentUploadResponse | null>(null)
   const [dragActive, setDragActive] = useState(false)
   const [elapsedMs, setElapsedMs] = useState(0)
+  const [ingestProgress, setIngestProgress] = useState<number | null>(null)
+  const [ingestStatusLabel, setIngestStatusLabel] = useState<string | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
   const timerRef = useRef<number | null>(null)
   const startRef = useRef(0)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    setDraftCourseId(courseId)
+  }, [courseId])
+
+  const commitCourseId = useCallback(() => {
+    const trimmed = draftCourseId.trim()
+    if (trimmed !== courseId.trim()) {
+      onCourseIdCommit(trimmed)
+    }
+  }, [courseId, draftCourseId, onCourseIdCommit])
 
   const setPanelPhase = useCallback(
     (next: UploadPanelPhase) => {
@@ -88,8 +117,16 @@ export function DocumentUploadPanel({
   }
 
   const handleUpload = () => {
-    const trimmedCourse = courseId.trim()
-    if (!trimmedCourse || !selectedFile || phase === 'indexing') return
+    const trimmedCourse = draftCourseId.trim()
+    if (!trimmedCourse) {
+      setError('Enter a course name or code before uploading.')
+      setPanelPhase('error')
+      return
+    }
+    if (trimmedCourse !== courseId.trim()) {
+      onCourseIdCommit(trimmedCourse)
+    }
+    if (!selectedFile || phase === 'indexing') return
 
     abortRef.current?.abort()
     const controller = new AbortController()
@@ -97,6 +134,8 @@ export function DocumentUploadPanel({
 
     setError(null)
     setSuccess(null)
+    setIngestProgress(null)
+    setIngestStatusLabel(null)
     setPanelPhase('indexing')
     onUploadStart?.()
     startRef.current = Date.now()
@@ -106,17 +145,43 @@ export function DocumentUploadPanel({
       setElapsedMs(Date.now() - startRef.current)
     }, 250)
 
-    void postDocumentUpload(trimmedCourse, selectedFile, docKind, controller.signal)
-      .then((response) => {
+    const uploadIntent = resolveUploadIntent(docKind, uploadIntentChoice)
+    void postDocumentUpload(trimmedCourse, selectedFile, docKind, uploadIntent, controller.signal)
+      .then(async (response) => {
         if (controller.signal.aborted) return
-        setSuccess(response)
+
+        let readyResponse = response
+        if (isAsyncQueuedUpload(response)) {
+          setIngestStatusLabel('Queued')
+          setIngestProgress(response.status === 'queued' ? 0 : null)
+          await pollIngestStatusUntilDone(response.document_id, docKind, {
+            signal: controller.signal,
+            onUpdate: (status) => {
+              if (controller.signal.aborted) return
+              setIngestProgress(status.progress_pct)
+              if (status.status === 'queued') {
+                setIngestStatusLabel('Queued')
+              } else if (status.status === 'processing' || status.document_status === 'processing') {
+                setIngestStatusLabel('Processing')
+              } else {
+                setIngestStatusLabel('Indexing')
+              }
+            },
+          })
+          readyResponse = await enrichUploadAfterIngest(response, controller.signal)
+        }
+
+        if (controller.signal.aborted) return
+        setSuccess(readyResponse)
         setPanelPhase('success')
-        onUploadSuccess?.(response)
+        onUploadSuccess?.(readyResponse)
       })
       .catch((err) => {
         if (controller.signal.aborted) return
         if (err instanceof UploadApiError) {
           setError(`${err.status}: ${err.message}`)
+        } else if (err instanceof IngestPollError) {
+          setError(err.message)
         } else {
           setError(err instanceof Error ? err.message : 'Upload failed')
         }
@@ -129,7 +194,15 @@ export function DocumentUploadPanel({
   }
 
   const isIndexing = phase === 'indexing'
-  const canSubmit = Boolean(selectedFile && courseId.trim()) && !isIndexing && !disabled
+  const canSubmit = Boolean(selectedFile && draftCourseId.trim()) && !isIndexing && !disabled
+  const timeoutMinutes = uploadTimeoutMinutes(docKind)
+  const indexingHint =
+    ingestStatusLabel === 'Queued'
+      ? 'Upload received — waiting for the ingest worker. Keep this tab open until indexing finishes.'
+      : docKind === 'past_paper'
+        ? 'Past papers may run OCR — often 5–15+ minutes on first upload. Keep this tab open.'
+        : 'Large notes can take several minutes on first upload (embed model load). Keep this tab open.'
+  const indexingTitle = ingestStatusLabel ?? 'Indexing'
 
   return (
     <section className="panel document-upload-panel glass-panel">
@@ -137,11 +210,31 @@ export function DocumentUploadPanel({
         <div>
           <h2>Upload course PDF</h2>
           <p className="panel-intro">
-            PDF only. Indexing runs on your machine — typically 30–60 seconds. No fake progress
-            bars.
+            PDF only. Upload returns quickly when background indexing is enabled; otherwise
+            indexing blocks until done — notes often 1–10 min, past papers longer with OCR (up to{' '}
+            {timeoutMinutes} min before timeout).
           </p>
         </div>
       </div>
+
+      <label className="field">
+        <span>Course name / code</span>
+        <input
+          type="text"
+          value={draftCourseId}
+          onChange={(event) => setDraftCourseId(event.target.value)}
+          onBlur={commitCourseId}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault()
+              commitCourseId()
+            }
+          }}
+          disabled={disabled || isIndexing}
+          placeholder="PPL, CHEM201"
+          autoComplete="off"
+        />
+      </label>
 
       <label className="field">
         <span>Document type</span>
@@ -157,6 +250,30 @@ export function DocumentUploadPanel({
           ))}
         </select>
       </label>
+
+      {showsUploadIntentPicker(docKind) && (
+        <fieldset className="field upload-intent-field">
+          <legend>Study layout</legend>
+          <div className="upload-intent-options">
+            {UPLOAD_INTENT_OPTIONS.map((option) => (
+              <label key={option.value} className="upload-intent-option">
+                <input
+                  type="radio"
+                  name="upload-intent"
+                  value={option.value}
+                  checked={uploadIntentChoice === option.value}
+                  disabled={disabled || isIndexing}
+                  onChange={() => setUploadIntentChoice(option.value)}
+                />
+                <span className="upload-intent-option-body">
+                  <span className="upload-intent-option-label">{option.label}</span>
+                  <span className="upload-intent-option-helper muted">{option.helper}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
 
       <div
         className={[
@@ -186,7 +303,7 @@ export function DocumentUploadPanel({
           {selectedFile ? selectedFile.name : 'Drop a PDF here or choose a file'}
         </p>
         <p className="upload-dropzone-hint muted">
-          Course: {courseId.trim() || '—'} · Re-upload replaces same filename + type
+          Course: {draftCourseId.trim() || '—'} · Re-upload replaces same filename + type
         </p>
         <button
           type="button"
@@ -202,9 +319,15 @@ export function DocumentUploadPanel({
         <div className="stage-pill upload-stage-pill" aria-live="polite">
           <span className="stage-pill-dot" aria-hidden="true" />
           <span className="stage-pill-label">
-            <span className="gradient-accent">Indexing</span>…
+            <span className="gradient-accent">{indexingTitle}</span>…
           </span>
           <span className="progress-elapsed">{formatElapsed(elapsedMs)}</span>
+          {ingestProgress !== null && (
+            <div className="upload-progress-track" role="progressbar" aria-valuenow={ingestProgress} aria-valuemin={0} aria-valuemax={100}>
+              <div className="upload-progress-fill" style={{ width: `${ingestProgress}%` }} />
+            </div>
+          )}
+          <p className="upload-indexing-hint muted">{indexingHint}</p>
         </div>
       )}
 
@@ -212,14 +335,19 @@ export function DocumentUploadPanel({
         <div className="upload-success-card" role="status">
           <h3>Ready to study</h3>
           <p>
-            <strong>{success.filename}</strong> indexed — {success.page_count} pages (
-            {success.doc_kind}).
+            <strong>{success.filename}</strong> indexed
+            {success.page_count != null ? ` — ${success.page_count} pages` : ''} ({success.doc_kind}
+            ).
           </p>
-          {success.extraction_quality?.outline?.unit_count != null && (
-            <p className="muted">
-              Outline detected: {success.extraction_quality.outline.unit_count} units
-            </p>
-          )}
+          <p className="muted">
+            Course: <strong>{success.course_id}</strong>
+          </p>
+          {(success.upload_intent ?? success.extraction_quality?.upload_intent) === 'syllabus' &&
+            success.extraction_quality?.outline?.unit_count != null && (
+              <p className="muted">
+                Outline detected: {success.extraction_quality.outline.unit_count} units
+              </p>
+            )}
         </div>
       )}
 
