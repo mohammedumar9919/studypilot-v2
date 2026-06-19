@@ -1,0 +1,36 @@
+Code No. 3112/N
+FACULTY OF ENGINEERING
+B.E. 2/4 (CSE) ll - Semester (New) (Suppl.) Examination, December 2016
+Subject: Principles of Programming Languages
+Time: 3 Hours Max.Marks: 75
+Note: Answer all questions from Part A. Answer any five questions from Part B.
+
+PART — A (25 Marks)
+in what fundamental way do operational semantics and denotational semantics differ?
+Which performs faster program execution, a compiler or an interpreter?
+Define lifetime, scope, static scope and dynamic scope.
+What are advantages of named constants?
+Write the general form (syntax) of for statement of Ada and Python languages.
+What is naming encapsulation?
+What is the difference between physical and logical concurrency?
+What advantages do monitors have over semaphores?
+Describe the syntax and semantics of COND and LET?
+Write the syntax for instantiating an object in Python for a class named Myclass.
+
+PART — B (5x10 = 50 Marks)
+11 a) Consider the following grammar.
+b) What Is the primary use of attribute grammar?
+12 a) Distinguish between static type binding and dynamic type binding.
+b) What is an overloaded operator?
+
+Code No. 3112/N
+2
+
+13 a) Explain briefly the criterion used to evaluate a programming language.
+b) Assume the following rules of associativity and precedence for expressions.
+14 a) Explain about arrays with examples in different languages.
+15 a) Describe the static method of implementing dynamic scoping.
+b) Is it possible for a programmer to choose a location for loop control?
+16 Write a detailed comparison of the exception-handling capabilities of C++ and those of Java.
+17 a) What are the syntactic forms and usage of fact and rule statements in Prolog?
+b) Write a Prolog program that finds the maximum of a list of numbers.

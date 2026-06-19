@@ -6,6 +6,8 @@ import uuid
 from unittest.mock import patch
 
 import pytest
+
+from tests.conftest import add_test_course
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -195,10 +197,133 @@ def test_query_rejects_unsupported_preset() -> None:
         json={
             "course_id": "PPL",
             "question": "What is a lexeme?",
-            "preset": "flashcards",
+            "preset": "not-a-preset",
         },
     )
     assert response.status_code == 400
+
+
+@patch("app.main.run_study_query")
+def test_query_omitted_source_ids_unchanged(mock_run) -> None:
+    mock_run.return_value = StudyQueryResult(
+        status="not_in_materials",
+        answer=None,
+        sources=[],
+        rerank_scores=[],
+    )
+
+    response = client.post(
+        "/api/v1/query",
+        json={
+            "course_id": "PPL",
+            "question": "What is a lexeme?",
+            "preset": "study",
+        },
+    )
+
+    assert response.status_code == 200
+    mock_run.assert_called_once()
+    assert mock_run.call_args.kwargs["source_ids"] is None
+    assert mock_run.call_args.kwargs["topic_ids"] is None
+
+
+@patch("app.main.run_study_query")
+def test_query_passes_validated_source_ids(mock_run, db_session) -> None:
+    from app.database import get_session
+    from app.models import Course, Document
+
+    add_test_course(db_session, "PPL", "Programming Languages")
+    doc_id = uuid.uuid4()
+    db_session.add(
+        Document(
+            id=doc_id,
+            course_id="PPL",
+            filename="PPL notes.pdf",
+            doc_kind="notes",
+            status="ready",
+            page_count=94,
+        )
+    )
+    db_session.commit()
+
+    def override_session():
+        yield db_session
+
+    app.dependency_overrides[get_session] = override_session
+    mock_run.return_value = StudyQueryResult(
+        status="not_in_materials",
+        answer=None,
+        sources=[],
+        rerank_scores=[],
+    )
+    try:
+        response = client.post(
+            "/api/v1/query",
+            json={
+                "course_id": "PPL",
+                "question": "What is a lexeme?",
+                "preset": "study",
+                "source_ids": [str(doc_id)],
+            },
+        )
+        assert response.status_code == 200
+        assert mock_run.call_args.kwargs["source_ids"] == [doc_id]
+    finally:
+        app.dependency_overrides.pop(get_session, None)
+
+
+def test_query_rejects_empty_source_ids(db_session) -> None:
+    from app.database import get_session
+    from app.models import Course
+
+    add_test_course(db_session, "PPL", "Programming Languages")
+    db_session.commit()
+
+    def override_session():
+        yield db_session
+
+    app.dependency_overrides[get_session] = override_session
+    try:
+        response = client.post(
+            "/api/v1/query",
+            json={
+                "course_id": "PPL",
+                "question": "What is a lexeme?",
+                "preset": "study",
+                "source_ids": [],
+            },
+        )
+        assert response.status_code == 400
+        assert "must not be empty" in response.json()["detail"]
+    finally:
+        app.dependency_overrides.pop(get_session, None)
+
+
+def test_query_rejects_empty_topic_ids(db_session) -> None:
+    from app.database import get_session
+    from app.models import Course
+
+    add_test_course(db_session, "CHEM", "Chemistry", structure_mode="organized")
+    db_session.commit()
+
+    def override_session():
+        yield db_session
+
+    app.dependency_overrides[get_session] = override_session
+    try:
+        response = client.post(
+            "/api/v1/query",
+            json={
+                "course_id": "CHEM",
+                "question": "Explain entropy",
+                "preset": "study",
+                "topic_ids": [],
+            },
+        )
+        assert response.status_code == 400
+        assert "must not be empty" in response.json()["detail"]
+    finally:
+        app.dependency_overrides.pop(get_session, None)
 
 
 @patch("app.services.rag.pipeline.generate_study_answer")

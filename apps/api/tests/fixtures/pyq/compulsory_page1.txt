@@ -1,0 +1,34 @@
+Code No: E-5772/N/AICTE
+FACULTY OF ENGINEERING
+B.E. (CSE) V - Semester (AICTE) (Main) (New) Examination, February! March 20173
+Subject: Principles of Programming Languages
+Time: 3 Hours Max. Marks: 76
+
+Note: (i) First question is compulsory and answer any four questions from the
+remaining six questions. Each questions carries 14 Marks.
+
+1. a) List out Reasons for studying concepts of programming languages.
+b) Derive a Parse tree with example grammar.
+c) Define Record and Union.
+d) Explain Guarded commands.
+e) List out Design Issues for Functions.
+f) Define Semaphore.
+g) Differentiate between Functional and Imperative Programming languages.
+
+2. a) Discuss different Programming Paradigms.
+b) Explain Ambiguous Grammar with suitable examples.
+
+3. a) Define subprogram and Explain its Features and types.
+b) Explain Mixed mode Assignment and Compound statements with examples.
+
+4. a) Describe the primitive data types and the design issues associated with them
+b) Writes short note on different array categories with examples
+
+5. a) Explain different modes for passing parameters to subprograms
+b) Discuss in detail about the overloaded and generic subprograms
+
+6. a) Explain different methods used for concurrency control.
+b) Discuss in detail about logic programming languages
+
+7. a) What you mean by FPL and explain fundamentals of FPL?
+b) Demonstrate the abstraction modes available in python

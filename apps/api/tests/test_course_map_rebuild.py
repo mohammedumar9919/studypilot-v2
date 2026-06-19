@@ -17,6 +17,7 @@ from app.models import Course, Document
 from app.services.course_map import promote_course_map, rebuild_course_map_outline
 from app.services.course_outline import get_course_outline
 from app.services.study_topics import update_structure_mode
+from tests.conftest import add_test_course
 
 client = TestClient(app)
 
@@ -35,13 +36,12 @@ def _clear_db_override() -> None:
 def _seed_stuck_cn(db_session: Session, tmp_path: Path) -> None:
     syllabus_path = tmp_path / "CN syllabus.pdf"
     syllabus_path.write_bytes(b"%PDF-1.4")
-    db_session.add(
-        Course(
-            id="CN",
-            name="Computer Networks",
-            structure_mode="mapped",
-            outline_data=None,
-        )
+    add_test_course(
+        db_session,
+        "CN",
+        "Computer Networks",
+        structure_mode="mapped",
+        outline_data=None,
     )
     db_session.add(
         Document(
@@ -149,7 +149,7 @@ def test_rebuild_outline_makes_get_outline_available(mock_build, db_session, tmp
 
 
 def test_cn_mapped_can_demote_to_corpus(db_session) -> None:
-    db_session.add(Course(id="CN", name="Computer Networks", structure_mode="mapped"))
+    add_test_course(db_session, "CN", "Computer Networks", structure_mode="mapped")
     db_session.commit()
 
     course = update_structure_mode(db_session, "CN", "corpus")
@@ -157,7 +157,7 @@ def test_cn_mapped_can_demote_to_corpus(db_session) -> None:
 
 
 def test_ppl_fixture_cannot_demote(db_session) -> None:
-    db_session.add(Course(id="PPL", name="PPL", structure_mode="mapped"))
+    add_test_course(db_session, "PPL", "PPL", structure_mode="mapped")
     db_session.commit()
 
     with pytest.raises(ValueError, match="Cannot demote mapped fixture course"):
@@ -166,7 +166,7 @@ def test_ppl_fixture_cannot_demote(db_session) -> None:
 
 @patch("app.main.rebuild_course_map_outline")
 def test_api_rebuild_outline(mock_rebuild, db_session) -> None:
-    db_session.add(Course(id="CN", name="CN", structure_mode="mapped"))
+    add_test_course(db_session, "CN", "CN", structure_mode="mapped")
     db_session.commit()
 
     mock_rebuild.return_value = {
@@ -191,7 +191,7 @@ def test_api_rebuild_outline(mock_rebuild, db_session) -> None:
 
 
 def test_api_rebuild_outline_no_syllabus_422(db_session) -> None:
-    db_session.add(Course(id="CN", name="CN", structure_mode="mapped"))
+    add_test_course(db_session, "CN", "CN", structure_mode="mapped")
     db_session.commit()
 
     _override_db(db_session)

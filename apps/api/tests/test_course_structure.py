@@ -8,6 +8,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+
+from tests.conftest import add_test_course
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -152,7 +154,7 @@ def test_import_syllabus_preview_nested_parts(mock_parse, db_session) -> None:
         ],
         None,
     )
-    db_session.add(Course(id="CN", name="Computer Networks", structure_mode="corpus"))
+    add_test_course(db_session, "CN", "Computer Networks", structure_mode="corpus")
     db_session.commit()
 
     with patch(
@@ -173,7 +175,7 @@ def test_import_syllabus_preview_nested_parts(mock_parse, db_session) -> None:
 
 
 def test_confirm_persists_nested_parts(db_session) -> None:
-    db_session.add(Course(id="CHEM", name="Chemistry", structure_mode="corpus"))
+    add_test_course(db_session, "CHEM", "Chemistry", structure_mode="corpus")
     db_session.commit()
 
     confirmed = confirm_course_structure(
@@ -200,7 +202,7 @@ def test_confirm_persists_nested_parts(db_session) -> None:
 
 
 def test_api_import_paste_nested_and_confirm(db_session) -> None:
-    db_session.add(Course(id="CHEM", name="Chemistry", structure_mode="corpus"))
+    add_test_course(db_session, "CHEM", "Chemistry", structure_mode="corpus")
     db_session.commit()
 
     _override_db(db_session)
@@ -239,7 +241,7 @@ def test_parse_pasted_structure_rejects_empty_text() -> None:
 
 
 def test_import_paste_preview(db_session) -> None:
-    db_session.add(Course(id="CHEM", name="Chemistry", structure_mode="corpus"))
+    add_test_course(db_session, "CHEM", "Chemistry", structure_mode="corpus")
     db_session.commit()
 
     result = import_pasted_structure(
@@ -258,7 +260,7 @@ def test_import_syllabus_cn_preview_five_units(mock_extract, db_session, tmp_pat
     mock_extract.return_value = _mock_cn_extraction()
     syllabus_path = tmp_path / "CN syllabus.pdf"
     syllabus_path.write_bytes(CN_ENGINEERING_FIXTURE.read_bytes())
-    db_session.add(Course(id="CN", name="Computer Networks", structure_mode="corpus"))
+    add_test_course(db_session, "CN", "Computer Networks", structure_mode="corpus")
     _add_syllabus_document(db_session, file_path=syllabus_path)
     db_session.commit()
 
@@ -273,7 +275,7 @@ def test_import_syllabus_cn_preview_five_units(mock_extract, db_session, tmp_pat
 
 
 def test_confirm_persists_structure_and_sets_organized(db_session) -> None:
-    db_session.add(Course(id="CHEM", name="Chemistry", structure_mode="corpus"))
+    add_test_course(db_session, "CHEM", "Chemistry", structure_mode="corpus")
     db_session.commit()
 
     confirmed = confirm_course_structure(
@@ -302,7 +304,7 @@ def test_confirm_persists_structure_and_sets_organized(db_session) -> None:
 
 
 def test_confirm_replaces_existing_structure(db_session) -> None:
-    db_session.add(Course(id="CHEM", name="Chemistry", structure_mode="organized"))
+    add_test_course(db_session, "CHEM", "Chemistry", structure_mode="organized")
     db_session.commit()
 
     confirm_course_structure(
@@ -326,7 +328,7 @@ def test_get_course_structure_unknown_course(db_session) -> None:
 
 
 def test_api_get_structure_empty(db_session) -> None:
-    db_session.add(Course(id="CHEM", name="Chemistry", structure_mode="corpus"))
+    add_test_course(db_session, "CHEM", "Chemistry", structure_mode="corpus")
     db_session.commit()
 
     _override_db(db_session)
@@ -341,7 +343,7 @@ def test_api_get_structure_empty(db_session) -> None:
 
 
 def test_api_import_paste_and_confirm_flow(db_session) -> None:
-    db_session.add(Course(id="CHEM", name="Chemistry", structure_mode="corpus"))
+    add_test_course(db_session, "CHEM", "Chemistry", structure_mode="corpus")
     db_session.commit()
 
     _override_db(db_session)
@@ -376,7 +378,7 @@ def test_api_import_syllabus_cn_five_units(mock_extract, db_session, tmp_path) -
     mock_extract.return_value = _mock_cn_extraction()
     syllabus_path = tmp_path / "CN syllabus.pdf"
     syllabus_path.write_bytes(CN_ENGINEERING_FIXTURE.read_bytes())
-    db_session.add(Course(id="CN", name="Computer Networks", structure_mode="corpus"))
+    add_test_course(db_session, "CN", "Computer Networks", structure_mode="corpus")
     _add_syllabus_document(db_session, file_path=syllabus_path)
     db_session.commit()
 
@@ -392,7 +394,7 @@ def test_api_import_syllabus_cn_five_units(mock_extract, db_session, tmp_path) -
 
 
 def test_api_import_syllabus_no_document_422(db_session) -> None:
-    db_session.add(Course(id="CN", name="Computer Networks", structure_mode="corpus"))
+    add_test_course(db_session, "CN", "Computer Networks", structure_mode="corpus")
     db_session.commit()
 
     _override_db(db_session)
@@ -414,7 +416,7 @@ def test_api_structure_404(db_session) -> None:
 
 
 def _seed_structure_with_docs(db_session) -> tuple[uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID]:
-    db_session.add(Course(id="CHEM", name="Chemistry", structure_mode="organized"))
+    add_test_course(db_session, "CHEM", "Chemistry", structure_mode="organized")
     db_session.commit()
     confirmed = confirm_course_structure(
         db_session,

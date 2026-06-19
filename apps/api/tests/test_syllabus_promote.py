@@ -14,6 +14,7 @@ from app.services.course_map import promote_course_map, rebuild_course_map_outli
 from app.services.course_outline import build_outline_for_promotion, get_course_outline, resolve_course_outline
 from app.services.pdf_extract import DocumentOutline, OutlineSection, OutlineUnit
 from app.services.study_topics import assign_document_topic, create_study_topic
+from tests.conftest import add_test_course
 from tests.test_toc_extraction import (
     _cn_engineering_syllabus_pages,
     _syllabus_five_unit_toc_pages as syllabus_toc_pages,
@@ -55,7 +56,7 @@ def _seed_cn_course(db_session: Session, tmp_path: Path) -> None:
     syllabus_path = tmp_path / "CN syllabus.pdf"
     syllabus_path.write_bytes(b"%PDF-1.4")
 
-    db_session.add(Course(id="CN", name="Computer Networks", structure_mode="organized"))
+    add_test_course(db_session, "CN", "Computer Networks", structure_mode="organized")
     db_session.add(
         Document(
             id=uuid.uuid4(),
@@ -180,7 +181,7 @@ def test_build_outline_rejects_low_quality(
 
 
 def test_build_outline_requires_syllabus_document(db_session) -> None:
-    db_session.add(Course(id="CN", name="Computer Networks", structure_mode="organized"))
+    add_test_course(db_session, "CN", "Computer Networks", structure_mode="organized")
     db_session.commit()
 
     with pytest.raises(ValueError, match="syllabus_document_not_found"):
@@ -199,7 +200,7 @@ def test_find_syllabus_prefers_doc_kind(
     notes_path = tmp_path / "notes with syllabus keyword.pdf"
     syllabus_path.write_bytes(b"%PDF-1.4")
     notes_path.write_bytes(b"%PDF-1.4")
-    db_session.add(Course(id="CN", name="CN", structure_mode="organized"))
+    add_test_course(db_session, "CN", "CN", structure_mode="organized")
     db_session.add_all(
         [
             Document(
@@ -249,9 +250,7 @@ def test_stuck_cn_promote_repairs_outline(
     """Pre-052.1 CN: mapped with null outline_data → promote repairs via syllabus."""
     syllabus_path = tmp_path / "CN syllabus.pdf"
     syllabus_path.write_bytes(b"%PDF-1.4")
-    db_session.add(
-        Course(id="CN", name="Computer Networks", structure_mode="mapped", outline_data=None)
-    )
+    add_test_course(db_session, "CN", "Computer Networks", structure_mode="mapped", outline_data=None)
     db_session.add(
         Document(
             id=uuid.uuid4(),
@@ -288,9 +287,7 @@ def test_rebuild_outline_uses_engineering_syllabus_fixture(mock_extract_pdf, db_
     pages = _cn_engineering_syllabus_pages()
     syllabus_path = tmp_path / "CN syllabus.pdf"
     syllabus_path.write_bytes(b"%PDF-1.4")
-    db_session.add(
-        Course(id="CN", name="Computer Networks", structure_mode="mapped", outline_data=None)
-    )
+    add_test_course(db_session, "CN", "Computer Networks", structure_mode="mapped", outline_data=None)
     db_session.add(
         Document(
             id=uuid.uuid4(),

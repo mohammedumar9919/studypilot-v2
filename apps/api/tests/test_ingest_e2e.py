@@ -52,6 +52,7 @@ def test_ingest_ppl_papers_flags_partial(db_session) -> None:
     assert doc.status == "ready"
     quality = doc.extraction_quality or {}
     assert quality.get("partial") is True or quality.get("needs_ocr") is True
+    assert quality.get("exam_parse_method") == "regex"
 
 
 def test_ingest_idempotent(db_session) -> None:

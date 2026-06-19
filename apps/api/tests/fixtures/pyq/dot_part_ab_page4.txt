@@ -1,0 +1,34 @@
+Code No. 11461 / CBCS
+FACULTY OF ENGINEERING
+B.E. (CSE) IV - Semester (CBCS) (Main & Backlog) Examination, May / June 2019
+Subject : Programming Languages
+Time : 3 Hours Max. Marks: 70
+Note: Answer all questions from Part-A & any five questions from Part-B.
+
+PART — A (20 Marks)
+
+1 Write important uses of programming languages. (2)
+2 Write the differences between compder and interpreter. (2)
+3 What is backward chaining and forward chaining inferencing? (2)
+4 What is an alias? (2)
+5 What is Named constant? Give an example. (2)
+6 What's short circuit evaluation? (2)
+7 What are guarded commands? (2)
+8 What is a variable and what are the attributes of a variable? (2)
+9 Define template. Give example. (2)
+10 Write the differences between logic programming and concurrent Programming. (2)
+
+PART — B (50 Marks)
+11 (@) Discuss features of programming languages and its importance. (5)
+(b) Draw the syntax tree for Farid +ef.
+12 (@) Distinguish between gate types, arrays and records. (5)
+(b) What is call-by-value and call-by-reference? Give example. (5)
+13 (a) What are record value types? (6)
+(b) Explain concurrency mechanism in Ada. (5)
+14 Explain the Concept of inheritance with example. (10)
+15 (a) Explain logic programming language features. (5)
+(b) Write on scheme programming language. (6)
+16 Explain the various approaches for expression evaluation in functional programming language. (10)
+17 Write short notes on (10)
+(a) Abstract data types
+(b) Polymorphism.

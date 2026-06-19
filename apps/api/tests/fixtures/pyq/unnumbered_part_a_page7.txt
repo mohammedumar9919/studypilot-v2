@@ -1,0 +1,31 @@
+FACULTY OF ENGINEERING
+B.E. 3/4 (CSE) il- Semester (New) (Main) Examination, April / May 2013
+Subject : Principles of Programming Languages
+Time : 3 hours Max. Marks : 75
+Note: Answer all questions from Part-A. Answer any FIVE questions from Part-B.
+
+PART -— A (25 Marks)
+
+Draw the syntax tree for ((-y -6 *3)/z)+2.
+What are regular expressions?
+What is an alias?
+What is type checking?
+Define dynamic binding.
+Write on events.
+Define encapsulation.
+What is inspection?
+What are semaphores?
+Write on dynamic compilation.
+
+PART -B (50 Marks)
+11. Explain phases of compilation with diagram.
+12.a) Explain stack-based storage allocation mechanism.
+b) Explain iteration control structure.
+13.2) Write on genetic subroutines.
+b) Explain call by reference with example.
+14. Explain about arrays with examples in different languages.
+15.a) What are recursive types?
+b) Explain concurrency mechanism in Ada.
+16. Explain the concept of inheritance.
+17.4) Explain logic programming language features.
+b) Write on scheme programming language.
