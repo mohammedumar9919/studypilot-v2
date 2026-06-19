@@ -1,0 +1,58 @@
+OU BE (CSE) AICTE With effect from Academic Year 2022 - 2023
+
+DATA SCIENCE
+PES15CS
+Instruction: 3 periods per week Duration of SEE: 3 hours
+CIE: 30marks SEE: 70marks
+Credits: 3
+Objectives:
+
+1. To understand the concepts of Data Science and their related mathematical concepts.
+2. To learn various statistical concepts like linear and logistic regression and cluster
+analysis.
+3. To learn basics of R Programming environment: R language, R-studio andR packages
+4. To learn Predictive models and their real time
+applications.
+Outcomes:
+Students must be able to:
+1. Use various data structures and packages in R for data visualization and summarization
+2. Use linear, non-linear regression models, and classification techniques for data analysis
+3. Use clustering methods including K-means.
+
+UNIT-I
+
+Data Science: Introduction to data science, Linear Algebra for data science, Linear
+equation, Distance, Eigen values, Eigenvectors, Dimensionality reduction.
+
+UNIT II
+
+Statistical Modeling, Random variables, sample statisti
+Hypothesis Testing, Confidence Intervals, P hacking, Bayesian Inference.
+
+UNIT IIL
+
+Predictive Modeling: Linear Regression, Simple Linear Regression model building, Multiple
+Linear Regression, Logistic regression.
+
+s, Inference: Statistical
+
+UNIT IV
+
+Introduction to R Programming, getting started with R: Installation of R software and using
+the interface, Variables and data types, R Objects, Vectors and lists, Operations: Arithmetic,
+Logical and Matrix operations, Data frames, functions, Control structures, Debugging and
+Simulation in R.
+
+UNIT V
+
+Classification: performance measures, Logistic regression implementation in R, K-Nearest
+neighbors (KNN), K-Nearest neighbors implementation in R, Clustering: K-Means
+Algorithm, K-Means implementation in R.
+
+Case Studies of Data Science Application Weather forecasting, Stock market prediction,
+Object recognition, Real Time Sentiment Analysis.
+
+Suggested Readings:
+
+1. Nina Zumel, Practical Data Science with R, ManningPublications,2014.
+2. Peter Bruce and Andrew Bruce, Practical Statistics for Data Scientists,O’Reilly,2017.

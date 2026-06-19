@@ -13,7 +13,7 @@ PPL PDFs are stored in **Git LFS**. After cloning:
 
 ```powershell
 git lfs install
-git clone <repo-url> studypilot-v2
+git clone https://github.com/mohammedumar9919/studypilot-v2.git studypilot-v2
 cd studypilot-v2
 git lfs pull
 ```
@@ -29,7 +29,7 @@ Linux / macOS:
 
 ```bash
 git lfs install
-git clone <repo-url> studypilot-v2
+git clone https://github.com/mohammedumar9919/studypilot-v2.git studypilot-v2
 cd studypilot-v2
 git lfs pull
 test -f "eval/fixtures/ppl/PPL notes.pdf" && echo OK
@@ -99,6 +99,23 @@ If `retrieval-gate` shows **"Skip retrieval gate (fixtures not in repo)"**, run 
 | `EVAL_OOC_MIN` | `1.0` | 10/10 OOC refusals |
 | `GOLDEN_LIMIT` | (unset) | Set `10` for PR smoke |
 
+## API pytest auth bypass (SP-012b)
+
+Protected API routes require Clerk JWT in production. For local pytest and CI, set:
+
+```powershell
+$env:STUDYPILOT_AUTH_DISABLED = "1"
+$env:ENVIRONMENT = "development"
+cd apps\api
+python -m pytest -q
+```
+
+`tests/conftest.py` sets `STUDYPILOT_AUTH_DISABLED=1` by default. CI `eval-gate` workflow should include the same env var on the pytest step.
+
 ## Never in CI
 
 - `scripts/run_phase1b_eval.ps1` (4-threshold sweep, 1+ hour)
+
+## Pytest auth bypass
+
+API pytest sets `STUDYPILOT_AUTH_DISABLED=1` by default (`tests/conftest.py`) so course/query routes run without Clerk Bearer tokens. CI and local pytest do **not** need Clerk credentials. To test auth-enabled behavior, monkeypatch `settings.studypilot_auth_disabled = False` in the test module.

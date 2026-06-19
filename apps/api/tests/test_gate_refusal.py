@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 
-from app.services.rag.gate import apply_confidence_gate
+from app.services.rag.gate import apply_confidence_gate, apply_confidence_gate_detailed
 from app.services.rag.retrieve import RetrievedChunk
 
 
@@ -25,6 +25,26 @@ def test_gate_refuses_empty_chunks() -> None:
     chunks, status = apply_confidence_gate([], min_rerank_score=0.0)
     assert status == "not_in_materials"
     assert chunks == []
+
+
+def test_gate_detailed_empty_corpus() -> None:
+    chunks, status, reason = apply_confidence_gate_detailed([], min_rerank_score=0.35)
+    assert status == "not_in_materials"
+    assert chunks == []
+    assert reason == "empty_corpus"
+
+
+def test_gate_detailed_below_threshold() -> None:
+    chunks, status, reason = apply_confidence_gate_detailed([_chunk(0.2)], min_rerank_score=0.35)
+    assert status == "not_in_materials"
+    assert reason == "below_threshold"
+
+
+def test_gate_detailed_ok() -> None:
+    chunks, status, reason = apply_confidence_gate_detailed([_chunk(0.9)], min_rerank_score=0.35)
+    assert status == "ok"
+    assert reason is None
+    assert len(chunks) == 1
 
 
 def test_gate_refuses_low_score() -> None:

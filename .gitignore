@@ -6,3 +6,12 @@ __pycache__/
 .pytest_cache/
 eval/reports/
 pgdata/
+
+# Runtime upload store (regenerable; not source)
+apps/api/.uploads/
+# Local pytest run summaries
+apps/api/.pytest_*_summary.txt
+# Throwaway local diagnostic scripts
+apps/api/scripts/_tmp_*.py
+# Captured video frames (planning artifact, not source)
+.planning/ntr-frames/

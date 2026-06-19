@@ -122,16 +122,28 @@ def test_stream_debug_in_retrieval_complete(mock_retrieval, mock_stream) -> None
     assert events[0]["data"]["retrieval_debug"]["chunk_count"] == 1
 
 
-def test_stream_rejects_unsupported_preset() -> None:
-    response = client.post(
-        "/api/v1/query/stream",
-        json={
-            "course_id": "PPL",
-            "question": "What is a lexeme?",
-            "preset": "flashcards",
-        },
-    )
-    assert response.status_code == 400
+def test_stream_rejects_unsupported_preset(db_session) -> None:
+    from app.database import get_session
+    from tests.conftest import add_test_course
+
+    def override_get_session():
+        yield db_session
+
+    add_test_course(db_session, "PPL", "PPL")
+    db_session.commit()
+    app.dependency_overrides[get_session] = override_get_session
+    try:
+        response = client.post(
+            "/api/v1/query/stream",
+            json={
+                "course_id": "PPL",
+                "question": "What is a lexeme?",
+                "preset": "invalid_preset",
+            },
+        )
+        assert response.status_code == 400
+    finally:
+        app.dependency_overrides.clear()
 
 
 @patch("app.services.rag.generate._stream_complete")

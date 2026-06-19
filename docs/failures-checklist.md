@@ -14,6 +14,7 @@
 - Flag extraction_quality per document
 
 ## Security / process
-- Workspace ownership on all course routes (Phase 4)
+- Workspace ownership on all course routes (SP-012 Phase B)
+- No query-time exam LLM JSON extract; ingest-time PYQ structure requires schema validation + idempotent re-ingest
 - No sanitizer ladder — confidence gate instead
 - pytest DB credentials must match docker-compose

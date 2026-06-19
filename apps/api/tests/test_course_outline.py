@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from tests.conftest import add_test_course
 from app.main import app
 from app.models import Course
 from app.services.course_outline import get_course_outline, serialize_course_outline
@@ -16,7 +17,7 @@ client = TestClient(app)
 
 
 def test_get_course_outline_ppl(db_session) -> None:
-    db_session.add(Course(id="PPL", name="Programming Languages"))
+    add_test_course(db_session, "PPL", "Programming Languages")
     db_session.commit()
 
     result = get_course_outline(db_session, "PPL")
@@ -24,6 +25,7 @@ def test_get_course_outline_ppl(db_session) -> None:
     assert result["course_id"] == "PPL"
     assert result["document"] == "PPL notes.pdf"
     assert result["page_index_base"] == 0
+    assert result["outline_source"] == "fixture"
     assert len(result["units"]) == 5
     assert result["units"][0]["id"] == "1"
     assert result["units"][0]["title"] == "Preliminary Concepts"
@@ -36,13 +38,13 @@ def test_get_course_outline_unknown_course(db_session) -> None:
 
 
 def test_get_course_outline_course_without_fixture(db_session) -> None:
-    db_session.add(Course(id="CHEM", name="Chemistry"))
+    add_test_course(db_session, "CHEM", "Chemistry")
     db_session.commit()
     assert get_course_outline(db_session, "CHEM") is None
 
 
 def test_api_course_outline_ppl(db_session) -> None:
-    db_session.add(Course(id="PPL", name="Programming Languages"))
+    add_test_course(db_session, "PPL", "Programming Languages")
     db_session.commit()
 
     response = client.get("/api/v1/courses/PPL/outline")

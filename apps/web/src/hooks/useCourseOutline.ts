@@ -11,7 +11,7 @@ interface UseCourseOutlineResult {
   reload: () => void
 }
 
-export function useCourseOutline(courseId: string): UseCourseOutlineResult {
+export function useCourseOutline(courseId: string, refreshToken = 0): UseCourseOutlineResult {
   const [data, setData] = useState<OutlineResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -20,10 +20,10 @@ export function useCourseOutline(courseId: string): UseCourseOutlineResult {
 
   const load = useCallback(() => {
     const trimmed = courseId.trim()
-    if (!trimmed) {
+    if (!trimmed || trimmed.length < 2) {
       setData(null)
       setLoading(false)
-      setError('Enter a course ID to load the course outline.')
+      setError(null)
       setNotFound(false)
       return
     }
@@ -56,7 +56,7 @@ export function useCourseOutline(courseId: string): UseCourseOutlineResult {
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false)
       })
-  }, [courseId])
+  }, [courseId, refreshToken])
 
   useEffect(() => {
     load()

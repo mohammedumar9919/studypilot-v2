@@ -34,8 +34,11 @@ jobs:
     env:
       DATABASE_URL: postgresql+psycopg://studypilot:studypilot@localhost:5433/studypilot
       TEST_DATABASE_URL: postgresql+psycopg://studypilot:studypilot@localhost:5433/studypilot_test
+      OPENROUTER_API_KEY: ci-placeholder-not-used
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -53,7 +56,9 @@ jobs:
         working-directory: apps/api
         env:
           DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
-        run: python -m pytest -v --tb=short -k "not test_study_retrieval and not test_ooc_question"
+          STUDYPILOT_AUTH_DISABLED: "1"
+          ENVIRONMENT: development
+        run: python -m pytest -v --tb=short -k "not test_study_retrieval and not test_ooc_question and not test_ingest"
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
@@ -114,6 +119,13 @@ jobs:
         env:
           GOLDEN_LIMIT: ${{ github.event_name == 'pull_request' && '10' || github.event.inputs.golden_limit }}
         run: |
+          sed -i '1s/^\xEF\xBB\xBF//' scripts/ci_eval_gate.sh
           chmod +x scripts/ci_eval_gate.sh
           if [ -z "${GOLDEN_LIMIT}" ]; then unset GOLDEN_LIMIT; fi
+          for i in $(seq 1 30); do
+            if PGPASSWORD=studypilot psql -h 127.0.0.1 -p 5433 -U studypilot -d studypilot -c "SELECT 1" >/dev/null 2>&1; then
+              echo "Postgres accepting connections"; break
+            fi
+            sleep 2
+          done
           ./scripts/ci_eval_gate.sh

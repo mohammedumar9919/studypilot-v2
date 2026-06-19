@@ -32,12 +32,25 @@ def _chunk(page: int = 11, text: str = "A lexeme is the abstract unit.") -> Retr
 
 def test_build_messages_includes_question_and_excerpts() -> None:
     chunks = [_chunk()]
-    messages = _build_messages("What is a lexeme?", chunks)
+    messages = _build_messages("What is a lexeme?", chunks, preset="study")
     assert messages[0]["role"] == "system"
     assert messages[1]["role"] == "user"
     assert "What is a lexeme?" in messages[1]["content"]
+    assert "Question:" in messages[1]["content"]
     assert "PPL notes.pdf" in messages[1]["content"]
     assert "page 11" in messages[1]["content"]
+
+
+def test_build_messages_summary_preset() -> None:
+    messages = _build_messages("Lexemes", [_chunk()], preset="summary")
+    assert "Summarize ONLY" in messages[0]["content"]
+    assert "Topic / question:" in messages[1]["content"]
+
+
+def test_build_messages_flashcards_preset() -> None:
+    messages = _build_messages("Lexemes", [_chunk()], preset="flashcards")
+    assert "**Q:**" in messages[0]["content"]
+    assert "Focus topic:" in messages[1]["content"]
 
 
 @patch("app.services.rag.generate._complete")
@@ -56,6 +69,24 @@ def test_generate_study_answer_calls_openrouter(mock_complete) -> None:
 
 
 @patch("app.services.rag.generate._complete")
+def test_generate_summary_preset_uses_summary_prompt(mock_complete) -> None:
+    mock_complete.return_value = "- Point one"
+    generate_study_answer("Lexemes", [_chunk()], preset="summary")
+    messages = mock_complete.call_args.args[0]
+    assert "Summarize ONLY" in messages[0]["content"]
+    assert "Topic / question:" in messages[1]["content"]
+
+
+@patch("app.services.rag.generate._complete")
+def test_generate_flashcards_preset_uses_flashcards_prompt(mock_complete) -> None:
+    mock_complete.return_value = "**Q:** What?\n**A:** Answer."
+    generate_study_answer("Lexemes", [_chunk()], preset="flashcards")
+    messages = mock_complete.call_args.args[0]
+    assert "**Q:**" in messages[0]["content"]
+    assert "Focus topic:" in messages[1]["content"]
+
+
+@patch("app.services.rag.generate._complete")
 def test_generate_study_answer_respects_budget_chunk_limit(mock_complete) -> None:
     mock_complete.return_value = "Answer"
     chunks = [_chunk(page=i) for i in range(10)]
@@ -68,9 +99,28 @@ def test_generate_study_answer_respects_budget_chunk_limit(mock_complete) -> Non
     assert user_content.count("--- PPL notes.pdf") == parent_limit
 
 
+@patch("app.services.rag.generate._complete")
+def test_generate_exam_preset_uses_exam_prompt(mock_complete) -> None:
+    mock_complete.return_value = "Similar past questions on lexemes."
+    chunk = RetrievedChunk(
+        chunk_id=uuid.uuid4(),
+        document_id=uuid.uuid4(),
+        filename="PPL previous papers.pdf",
+        doc_kind="past_paper",
+        page=3,
+        text="Question on lexemes.",
+        parent_text="Past paper section.",
+        rerank_score=0.85,
+    )
+    generate_study_answer("Lexemes and tokens", [chunk], preset="exam")
+    messages = mock_complete.call_args.args[0]
+    assert "past-exam-paper excerpts" in messages[0]["content"]
+    assert "Exam question / topic:" in messages[1]["content"]
+
+
 def test_generate_study_answer_rejects_unsupported_preset() -> None:
     with pytest.raises(ValueError, match="Unsupported preset"):
-        generate_study_answer("Q?", [_chunk()], preset="flashcards")
+        generate_study_answer("Q?", [_chunk()], preset="invalid_preset")
 
 
 def test_generate_study_answer_requires_chunks() -> None:

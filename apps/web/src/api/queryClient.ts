@@ -7,6 +7,7 @@ import type {
   StreamTokenPayload,
 } from '../types'
 import { parseSseFrame, splitSseFrames } from '../utils/sseParser'
+import { authFetch } from './authFetch'
 
 const QUERY_ENDPOINT = '/api/v1/query'
 const STREAM_ENDPOINT = '/api/v1/query/stream'
@@ -28,7 +29,7 @@ export async function postStudyQuery(
   body: QueryRequest,
   signal?: AbortSignal,
 ): Promise<QueryResponse> {
-  const response = await fetch(QUERY_ENDPOINT, {
+  const response = await authFetch(QUERY_ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -76,7 +77,7 @@ export async function postStudyQueryStream(
   handlers: StreamEventHandlers,
   signal?: AbortSignal,
 ): Promise<void> {
-  const response = await fetch(STREAM_ENDPOINT, {
+  const response = await authFetch(STREAM_ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
     body: JSON.stringify(body),
