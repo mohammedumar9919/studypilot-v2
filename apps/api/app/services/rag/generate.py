@@ -24,12 +24,62 @@ class OpenRouterGenerationError(RuntimeError):
         super().__init__(message)
         self.status_code = status_code
 
+SUPPORTED_PRESETS = frozenset({"study", "summary", "flashcards", "exam"})
+
 _STUDY_SYSTEM_PROMPT = (
     "You are a study assistant for university course materials. "
     "Answer ONLY using the provided excerpts. "
     "If the excerpts do not contain enough information, say so briefly. "
     "Cite sources inline as [filename p.N]. Be concise and accurate."
 )
+
+_SUMMARY_SYSTEM_PROMPT = (
+    "You are a study assistant for university course materials. "
+    "Summarize ONLY using the provided excerpts. "
+    "Output concise bullet points (markdown `-` bullets). "
+    "Focus on the topic in the student's question. "
+    "Cite sources inline as [filename p.N]. "
+    "If the excerpts do not contain enough information, say so briefly."
+)
+
+_FLASHCARDS_SYSTEM_PROMPT = (
+    "You are a study assistant for university course materials. "
+    "Create flashcards ONLY from the provided excerpts. "
+    "Output 3–8 question/answer pairs in markdown using this format:\n"
+    "**Q:** ...\n**A:** ...\n"
+    "Include [filename p.N] on answers where relevant. "
+    "If the excerpts do not contain enough material, say so briefly."
+)
+
+_EXAM_SYSTEM_PROMPT = (
+    "You are an exam preparation assistant. "
+    "Answer ONLY using the provided past-exam-paper excerpts. "
+    "Do not invent questions or answers not supported by the excerpts. "
+    "When visible, identify the question style (short answer, essay, numerical, etc.). "
+    "Surface similar past questions from the excerpts when relevant to the student's topic. "
+    "You may suggest brief pointers on what to review in course notes, but do not invent note content. "
+    "Cite sources inline as [filename p.N]. "
+    "If the excerpts are insufficient, say so and suggest uploading or indexing past exam papers."
+)
+
+_SYSTEM_PROMPTS: dict[str, str] = {
+    "study": _STUDY_SYSTEM_PROMPT,
+    "summary": _SUMMARY_SYSTEM_PROMPT,
+    "flashcards": _FLASHCARDS_SYSTEM_PROMPT,
+    "exam": _EXAM_SYSTEM_PROMPT,
+}
+
+_USER_PROMPT_LABELS: dict[str, str] = {
+    "study": "Question",
+    "summary": "Topic / question",
+    "flashcards": "Focus topic",
+    "exam": "Exam question / topic",
+}
+
+
+def validate_preset(preset: str) -> None:
+    if preset not in SUPPORTED_PRESETS:
+        raise ValueError(f"Unsupported preset: {preset}")
 
 
 def _excerpt_text(chunk: RetrievedChunk, *, max_chars: int = 400) -> str:
@@ -49,11 +99,42 @@ def _build_context_block(chunks: list[RetrievedChunk]) -> str:
     return "\n\n".join(parts)
 
 
-def _build_messages(question: str, chunks: list[RetrievedChunk]) -> list[dict[str, str]]:
+def _build_messages(
+    question: str,
+    chunks: list[RetrievedChunk],
+    *,
+    preset: str = "study",
+) -> list[dict[str, str]]:
+    validate_preset(preset)
+    label = _USER_PROMPT_LABELS[preset]
     return [
-        {"role": "system", "content": _STUDY_SYSTEM_PROMPT},
-        {"role": "user", "content": f"Excerpts:\n\n{_build_context_block(chunks)}\n\nQuestion: {question}"},
+        {"role": "system", "content": _SYSTEM_PROMPTS[preset]},
+        {
+            "role": "user",
+            "content": f"Excerpts:\n\n{_build_context_block(chunks)}\n\n{label}: {question}",
+        },
     ]
+
+
+def _prepare_generation(
+    question: str,
+    chunks: list[RetrievedChunk],
+    *,
+    preset: str,
+) -> tuple[list[dict[str, str]], str, int, float]:
+    validate_preset(preset)
+    if not chunks:
+        raise ValueError("generation requires at least one chunk")
+
+    tier = settings.llm_budget_tier()
+    limited = chunks[: tier["parent_chunks"]]
+    messages = _build_messages(question, limited, preset=preset)
+    return (
+        messages,
+        settings.resolved_chat_model(),
+        tier["max_output_tokens"],
+        settings.llm_temperature,
+    )
 
 
 def _complete(
@@ -196,20 +277,15 @@ def generate_study_answer(
     *,
     preset: str = "study",
 ) -> str:
-    """Generate a grounded study answer from retrieved chunks."""
-    if preset != "study":
-        raise ValueError(f"Unsupported preset: {preset}")
-    if not chunks:
-        raise ValueError("generate_study_answer requires at least one chunk")
-
-    tier = settings.llm_budget_tier()
-    limited = chunks[: tier["parent_chunks"]]
-    messages = _build_messages(question, limited)
+    """Generate grounded output from retrieved chunks (study, summary, or flashcards)."""
+    messages, model, max_tokens, temperature = _prepare_generation(
+        question, chunks, preset=preset
+    )
     return _complete(
         messages,
-        model=settings.resolved_chat_model(),
-        max_tokens=tier["max_output_tokens"],
-        temperature=settings.llm_temperature,
+        model=model,
+        max_tokens=max_tokens,
+        temperature=temperature,
     )
 
 
@@ -219,18 +295,13 @@ def stream_study_answer(
     *,
     preset: str = "study",
 ) -> Iterator[str]:
-    """Stream grounded study answer token deltas from retrieved chunks."""
-    if preset != "study":
-        raise ValueError(f"Unsupported preset: {preset}")
-    if not chunks:
-        raise ValueError("stream_study_answer requires at least one chunk")
-
-    tier = settings.llm_budget_tier()
-    limited = chunks[: tier["parent_chunks"]]
-    messages = _build_messages(question, limited)
+    """Stream grounded output token deltas (study, summary, or flashcards)."""
+    messages, model, max_tokens, temperature = _prepare_generation(
+        question, chunks, preset=preset
+    )
     yield from _stream_complete(
         messages,
-        model=settings.resolved_chat_model(),
-        max_tokens=tier["max_output_tokens"],
-        temperature=settings.llm_temperature,
+        model=model,
+        max_tokens=max_tokens,
+        temperature=temperature,
     )
