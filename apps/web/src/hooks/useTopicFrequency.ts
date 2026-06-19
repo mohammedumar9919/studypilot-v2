@@ -3,6 +3,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchTopicFrequency, TopicFrequencyApiError } from '../api/topicFrequencyClient'
 import type { TopicFrequencyResponse } from '../types'
 
+interface UseTopicFrequencyOptions {
+  sectionDetail?: boolean
+}
+
 interface UseTopicFrequencyResult {
   data: TopicFrequencyResponse | null
   loading: boolean
@@ -11,7 +15,12 @@ interface UseTopicFrequencyResult {
   reload: () => void
 }
 
-export function useTopicFrequency(courseId: string, refreshToken = 0): UseTopicFrequencyResult {
+export function useTopicFrequency(
+  courseId: string,
+  refreshToken = 0,
+  options: UseTopicFrequencyOptions = {},
+): UseTopicFrequencyResult {
+  const { sectionDetail = false } = options
   const [data, setData] = useState<TopicFrequencyResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -20,10 +29,10 @@ export function useTopicFrequency(courseId: string, refreshToken = 0): UseTopicF
 
   const load = useCallback(() => {
     const trimmed = courseId.trim()
-    if (!trimmed) {
+    if (!trimmed || trimmed.length < 2) {
       setData(null)
       setLoading(false)
-      setError('Enter a course ID to load exam topic frequency.')
+      setError(null)
       setNotFound(false)
       return
     }
@@ -36,7 +45,7 @@ export function useTopicFrequency(courseId: string, refreshToken = 0): UseTopicF
     setError(null)
     setNotFound(false)
 
-    void fetchTopicFrequency(trimmed, controller.signal)
+    void fetchTopicFrequency(trimmed, { sectionDetail, signal: controller.signal })
       .then((response) => {
         if (controller.signal.aborted) return
         setData(response)
@@ -56,7 +65,7 @@ export function useTopicFrequency(courseId: string, refreshToken = 0): UseTopicF
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false)
       })
-  }, [courseId, refreshToken])
+  }, [courseId, refreshToken, sectionDetail])
 
   useEffect(() => {
     load()

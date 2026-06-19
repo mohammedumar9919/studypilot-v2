@@ -21,6 +21,9 @@ export function ChunkInspector({
   selectedChunkId,
   onSelectChunkId,
 }: ChunkInspectorProps) {
+  const debugChunks = result?.retrieval_debug?.chunks ?? []
+  const refusalReason = result?.retrieval_debug?.refusal_reason
+  const topRerankScore = result?.retrieval_debug?.top_rerank_score
   const retrievedPages = result?.retrieval_debug?.pages ?? []
   const pageMatch =
     selectedHint && retrievedPages.length > 0
@@ -28,8 +31,8 @@ export function ChunkInspector({
       : null
 
   const selectedChunk =
-    selectedChunkId && result?.retrieval_debug?.chunks
-      ? result.retrieval_debug.chunks.find((chunk) => chunk.chunk_id === selectedChunkId) ?? null
+    selectedChunkId && debugChunks.length > 0
+      ? debugChunks.find((chunk) => chunk.chunk_id === selectedChunkId) ?? null
       : null
 
   return (
@@ -134,7 +137,7 @@ export function ChunkInspector({
                 </tr>
               </thead>
               <tbody>
-                {result.retrieval_debug.chunks.map((chunk) => {
+                {debugChunks.map((chunk) => {
                   const expected = pageHitsChunk(chunk.page, selectedHint.expectedPages)
                   return (
                     <tr
@@ -167,6 +170,15 @@ export function ChunkInspector({
       {result?.retrieval_debug && debugEnabled && (
         <div className="retrieval-chunks">
           <h3>Retrieved chunks (latest query)</h3>
+
+          {refusalReason && debugChunks.length === 0 && (
+            <p className="muted">
+              No chunks retrieved — {refusalReason}
+              {typeof topRerankScore === 'number' && (
+                <> (top rerank score: {topRerankScore.toFixed(4)})</>
+              )}
+            </p>
+          )}
 
           {selectedChunk ? (
             <div className="chunk-card">
@@ -219,7 +231,7 @@ export function ChunkInspector({
                 </tr>
               </thead>
               <tbody>
-                {result.retrieval_debug.chunks.map((chunk, index) => {
+                {debugChunks.map((chunk, index) => {
                   const selected = chunk.chunk_id === selectedChunkId
                   return (
                     <tr

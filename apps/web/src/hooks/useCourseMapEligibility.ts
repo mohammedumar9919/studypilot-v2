@@ -1,0 +1,69 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+
+import { CourseMapApiError, fetchCourseMapEligibility } from '../api/courseMapClient'
+import type { CourseMapEligibilityResponse } from '../types'
+
+interface UseCourseMapEligibilityResult {
+  data: CourseMapEligibilityResponse | null
+  loading: boolean
+  error: string | null
+  reload: () => void
+}
+
+export function useCourseMapEligibility(
+  courseId: string,
+  refreshToken = 0,
+  enabled = true,
+): UseCourseMapEligibilityResult {
+  const [data, setData] = useState<CourseMapEligibilityResponse | null>(null)
+  const [loading, setLoading] = useState(enabled)
+  const [error, setError] = useState<string | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
+
+  const load = useCallback(() => {
+    const trimmed = courseId.trim()
+    if (!enabled || !trimmed || trimmed.length < 2) {
+      setData(null)
+      setLoading(false)
+      setError(null)
+      return
+    }
+
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
+    setLoading(true)
+    setError(null)
+
+    void fetchCourseMapEligibility(trimmed, controller.signal)
+      .then((response) => {
+        if (controller.signal.aborted) return
+        setData(response)
+      })
+      .catch((err) => {
+        if (controller.signal.aborted) return
+        if (err instanceof DOMException && err.name === 'AbortError') return
+        setData(null)
+        if (err instanceof CourseMapApiError && err.status === 404) {
+          setError(null)
+          return
+        }
+        if (err instanceof CourseMapApiError) {
+          setError(`${err.status}: ${err.message}`)
+        } else {
+          setError(err instanceof Error ? err.message : 'Could not load Course Map eligibility.')
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
+  }, [courseId, enabled, refreshToken])
+
+  useEffect(() => {
+    load()
+    return () => abortRef.current?.abort()
+  }, [load])
+
+  return { data, loading, error, reload: load }
+}

@@ -1,24 +1,71 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 
 import { useTopicFrequency } from '../hooks/useTopicFrequency'
+import { isExamPreset } from '../constants/queryPresets'
+import type { ExamHeatmapSource, QueryPreset } from '../types'
+import {
+  canToggleSectionBreakdown,
+  coverageBannerClass,
+  formatTopicUnitLabel,
+  shouldDefaultShowSectionBreakdown,
+  topicFrequencyEmptyMessage,
+  topicFrequencyHasSectionDetail,
+} from '../utils/courseLabels'
 
 interface TopicFrequencyPanelProps {
   courseId: string
   refreshToken?: number
+  queryPreset?: QueryPreset
+  heatmapSource?: ExamHeatmapSource
+  onSelectExamPreset?: () => void
 }
 
-function isPartialCoverage(note: string): boolean {
-  return /partial/i.test(note)
-}
+export function TopicFrequencyPanel({
+  courseId,
+  refreshToken = 0,
+  queryPreset = 'study',
+  heatmapSource,
+  onSelectExamPreset,
+}: TopicFrequencyPanelProps) {
+  const [showSectionBreakdown, setShowSectionBreakdown] = useState(false)
+  const [breakdownInitialized, setBreakdownInitialized] = useState(false)
 
-export function TopicFrequencyPanel({ courseId, refreshToken = 0 }: TopicFrequencyPanelProps) {
-  const { data, loading, error, notFound, reload } = useTopicFrequency(courseId, refreshToken)
+  const { data, loading, error, notFound, reload } = useTopicFrequency(courseId, refreshToken, {
+    sectionDetail: showSectionBreakdown,
+  })
+
+  useEffect(() => {
+    if (!data || breakdownInitialized) return
+    setShowSectionBreakdown(shouldDefaultShowSectionBreakdown(data.units))
+    setBreakdownInitialized(true)
+  }, [data, breakdownInitialized])
+
+  useEffect(() => {
+    setBreakdownInitialized(false)
+    setShowSectionBreakdown(false)
+  }, [courseId, refreshToken])
 
   const maxUnitCount = useMemo(() => {
     if (!data?.units.length) return 1
     return Math.max(...data.units.map((unit) => unit.count), 1)
   }, [data])
+
+  const emptyMessage = data
+    ? topicFrequencyEmptyMessage(
+        data.total_questions_estimated,
+        data.units.length,
+        data.source_documents.length,
+        data.coverage_note,
+      )
+    : null
+
+  const showBreakdownToggle = data
+    ? canToggleSectionBreakdown(data.units, data.total_questions_estimated)
+    : false
+
+  const sectionsVisible =
+    showSectionBreakdown && data ? topicFrequencyHasSectionDetail(data.units) : false
 
   return (
     <section className="panel topic-frequency-panel" aria-live="polite">
@@ -26,7 +73,7 @@ export function TopicFrequencyPanel({ courseId, refreshToken = 0 }: TopicFrequen
         <div>
           <h2>Exam topic frequency</h2>
           <p className="panel-intro">
-            Estimated past-paper questions by unit — from ingested PYQ corpus only.
+            Estimated past-paper questions by topic — matched to your course outline when possible.
           </p>
         </div>
         {!loading && (
@@ -35,6 +82,12 @@ export function TopicFrequencyPanel({ courseId, refreshToken = 0 }: TopicFrequen
           </button>
         )}
       </div>
+
+      {heatmapSource === 'parsed' && (
+        <p className="muted topic-frequency-parsed-source" role="status">
+          Parsed from past papers
+        </p>
+      )}
 
       {loading && (
         <div className="topic-frequency-loading">
@@ -57,64 +110,77 @@ export function TopicFrequencyPanel({ courseId, refreshToken = 0 }: TopicFrequen
       {!loading && data && (
         <>
           {data.coverage_note && (
-            <div
-              className={
-                isPartialCoverage(data.coverage_note)
-                  ? 'coverage-banner coverage-partial'
-                  : 'coverage-banner coverage-full'
-              }
-              role="status"
-            >
+            <div className={coverageBannerClass(data.coverage_note)} role="status">
               {data.coverage_note}
             </div>
           )}
 
-          <p className="topic-frequency-total">
-            <span className="topic-frequency-total-label">Estimated questions</span>
-            <span className="topic-frequency-total-value">{data.total_questions_estimated}</span>
-          </p>
-
           {data.units.length === 0 ? (
-            <p className="muted">No past-paper units indexed for this course yet.</p>
-          ) : (
-            <div className="topic-frequency-chart">
-              {data.units.map((unit, unitIndex) => {
-                const barWidth = Math.round((unit.count / maxUnitCount) * 100)
-                return (
-                  <details key={unit.unit} className="topic-unit-row card-hover" open={data.units.length <= 3}>
-                    <summary className="topic-unit-summary">
-                      <span className="topic-unit-label">
-                        Unit {unit.unit}: {unit.title}
-                      </span>
-                      <span className="topic-unit-count">{unit.count}</span>
-                    </summary>
-
-                    <div className="topic-bar-track" aria-hidden="true">
-                      <div
-                        className="topic-bar-fill topic-bar-grow"
-                        style={
-                          {
-                            '--bar-width': `${barWidth}%`,
-                            '--bar-delay': `${unitIndex * 40}ms`,
-                          } as CSSProperties
-                        }
-                      />
-                    </div>
-
-                    {unit.sections.length > 0 && (
-                      <ul className="topic-section-list">
-                        {unit.sections.map((section) => (
-                          <li key={`${unit.unit}-${section.section_title}`}>
-                            <span className="topic-section-title">{section.section_title}</span>
-                            <span className="topic-section-count">{section.count}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </details>
-                )
-              })}
+            <div className="topic-frequency-empty" role="status">
+              <p>{emptyMessage}</p>
+              {data.total_questions_estimated === 0 && (
+                <ul className="topic-frequency-empty-steps">
+                  <li>Upload a PDF using the Past paper document type</li>
+                  <li>Wait for indexing to finish</li>
+                  <li>Refresh this panel to see topic bars</li>
+                </ul>
+              )}
             </div>
+          ) : (
+            <>
+              <p className="topic-frequency-total">
+                <span className="topic-frequency-total-label">Estimated questions</span>
+                <span className="topic-frequency-total-value">{data.total_questions_estimated}</span>
+              </p>
+
+              {showBreakdownToggle && (
+                <button
+                  type="button"
+                  className="topic-section-toggle text-btn"
+                  aria-pressed={showSectionBreakdown}
+                  onClick={() => setShowSectionBreakdown((open) => !open)}
+                >
+                  {showSectionBreakdown ? 'Hide section breakdown' : 'Show section breakdown'}
+                </button>
+              )}
+
+              <div className="topic-frequency-chart">
+                {data.units.map((unit, unitIndex) => {
+                  const barWidth = Math.round((unit.count / maxUnitCount) * 100)
+                  return (
+                    <div key={`${unit.unit}-${unit.title}`} className="topic-unit-row card-hover">
+                      <div className="topic-unit-header">
+                        <span className="topic-unit-label">{formatTopicUnitLabel(unit)}</span>
+                        <span className="topic-unit-count">{unit.count}</span>
+                      </div>
+
+                      <div className="topic-bar-track" aria-hidden="true">
+                        <div
+                          className="topic-bar-fill topic-bar-grow"
+                          style={
+                            {
+                              '--bar-width': `${barWidth}%`,
+                              '--bar-delay': `${unitIndex * 40}ms`,
+                            } as CSSProperties
+                          }
+                        />
+                      </div>
+
+                      {sectionsVisible && (unit.sections ?? []).length > 0 && (
+                        <ul className="topic-section-list">
+                          {(unit.sections ?? []).map((section) => (
+                            <li key={`${unit.unit}-${section.section_title}`}>
+                              <span className="topic-section-title">{section.section_title}</span>
+                              <span className="topic-section-count">{section.count}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </>
           )}
 
           {data.source_documents.length > 0 && (
@@ -125,6 +191,14 @@ export function TopicFrequencyPanel({ courseId, refreshToken = 0 }: TopicFrequen
                 .join('; ')}
             </p>
           )}
+
+          {!isExamPreset(queryPreset) &&
+            data.source_documents.length > 0 &&
+            onSelectExamPreset && (
+              <button type="button" className="text-btn exam-mode-link" onClick={onSelectExamPreset}>
+                Switch to Exam mode to practice past papers
+              </button>
+            )}
         </>
       )}
     </section>

@@ -6,6 +6,11 @@ interface DebugPanelProps {
 
 export function DebugPanel({ result }: DebugPanelProps) {
   const { rerank_scores, retrieval_debug } = result
+  const chunks = retrieval_debug?.chunks ?? []
+  const pages = retrieval_debug?.pages ?? []
+  const filenames = retrieval_debug?.filenames ?? []
+  const refusalReason = retrieval_debug?.refusal_reason
+  const topRerankScore = retrieval_debug?.top_rerank_score
 
   if (!retrieval_debug && rerank_scores.length === 0) {
     return (
@@ -37,20 +42,32 @@ export function DebugPanel({ result }: DebugPanelProps) {
 
       {retrieval_debug && (
         <>
+          {refusalReason && chunks.length === 0 && (
+            <div className="debug-section">
+              <h3>Refusal summary</h3>
+              <p className="muted">
+                No chunks retrieved — {refusalReason}
+                {typeof topRerankScore === 'number' && (
+                  <> (top rerank score: {topRerankScore.toFixed(4)})</>
+                )}
+              </p>
+            </div>
+          )}
+
           <div className="debug-section">
             <h3>Retrieval summary</h3>
             <dl className="debug-dl">
               <div>
                 <dt>Chunks</dt>
-                <dd>{retrieval_debug.chunk_count}</dd>
+                <dd>{retrieval_debug.chunk_count ?? chunks.length}</dd>
               </div>
               <div>
                 <dt>Pages (0-based)</dt>
-                <dd>{retrieval_debug.pages.join(', ') || '—'}</dd>
+                <dd>{pages.join(', ') || '—'}</dd>
               </div>
               <div>
                 <dt>Filenames</dt>
-                <dd>{[...new Set(retrieval_debug.filenames)].join(', ') || '—'}</dd>
+                <dd>{[...new Set(filenames)].join(', ') || '—'}</dd>
               </div>
             </dl>
           </div>
@@ -69,7 +86,7 @@ export function DebugPanel({ result }: DebugPanelProps) {
                   </tr>
                 </thead>
                 <tbody>
-                  {retrieval_debug.chunks.map((chunk, index) => (
+                  {chunks.map((chunk, index) => (
                     <tr key={chunk.chunk_id}>
                       <td>{index + 1}</td>
                       <td>{chunk.page}</td>

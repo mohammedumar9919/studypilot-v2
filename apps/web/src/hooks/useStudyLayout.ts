@@ -1,21 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { fetchCourseOutline, OutlineApiError } from '../api/outlineClient'
-import type { OutlineResponse } from '../types'
+import { fetchStudyLayout, StudyLayoutApiError } from '../api/studyLayoutClient'
+import type { StudyLayoutResponse } from '../types'
 
-interface UseCourseOutlineResult {
-  data: OutlineResponse | null
+interface UseStudyLayoutResult {
+  data: StudyLayoutResponse | null
   loading: boolean
   error: string | null
-  notFound: boolean
   reload: () => void
 }
 
-export function useCourseOutline(courseId: string, refreshToken = 0): UseCourseOutlineResult {
-  const [data, setData] = useState<OutlineResponse | null>(null)
+export function useStudyLayout(courseId: string, refreshToken = 0): UseStudyLayoutResult {
+  const [data, setData] = useState<StudyLayoutResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [notFound, setNotFound] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
 
   const load = useCallback(() => {
@@ -24,7 +22,6 @@ export function useCourseOutline(courseId: string, refreshToken = 0): UseCourseO
       setData(null)
       setLoading(false)
       setError(null)
-      setNotFound(false)
       return
     }
 
@@ -34,24 +31,21 @@ export function useCourseOutline(courseId: string, refreshToken = 0): UseCourseO
 
     setLoading(true)
     setError(null)
-    setNotFound(false)
 
-    void fetchCourseOutline(trimmed, controller.signal)
+    void fetchStudyLayout(trimmed, controller.signal)
       .then((response) => {
         if (controller.signal.aborted) return
         setData(response)
       })
       .catch((err) => {
         if (controller.signal.aborted) return
-        if (err instanceof OutlineApiError && err.status === 404) {
-          setNotFound(true)
-          setData(null)
-          setError(`No outline for course “${trimmed}”.`)
-          return
-        }
         if (err instanceof DOMException && err.name === 'AbortError') return
         setData(null)
-        setError(err instanceof Error ? err.message : 'Could not load course outline.')
+        if (err instanceof StudyLayoutApiError) {
+          setError(`${err.status}: ${err.message}`)
+        } else {
+          setError(err instanceof Error ? err.message : 'Could not load study layout.')
+        }
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false)
@@ -63,5 +57,5 @@ export function useCourseOutline(courseId: string, refreshToken = 0): UseCourseO
     return () => abortRef.current?.abort()
   }, [load])
 
-  return { data, loading, error, notFound, reload: load }
+  return { data, loading, error, reload: load }
 }

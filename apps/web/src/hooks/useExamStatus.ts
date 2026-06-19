@@ -1,18 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { fetchCourseOutline, OutlineApiError } from '../api/outlineClient'
-import type { OutlineResponse } from '../types'
+import { ExamStatusApiError, fetchExamStatus } from '../api/examStatusClient'
+import type { ExamStatusResponse } from '../types'
 
-interface UseCourseOutlineResult {
-  data: OutlineResponse | null
+interface UseExamStatusResult {
+  data: ExamStatusResponse | null
   loading: boolean
   error: string | null
   notFound: boolean
+  examIndexReady: boolean | null
+  heatmapAvailable: boolean | null
   reload: () => void
 }
 
-export function useCourseOutline(courseId: string, refreshToken = 0): UseCourseOutlineResult {
-  const [data, setData] = useState<OutlineResponse | null>(null)
+export function useExamStatus(courseId: string, refreshToken = 0): UseExamStatusResult {
+  const [data, setData] = useState<ExamStatusResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notFound, setNotFound] = useState(false)
@@ -35,23 +37,24 @@ export function useCourseOutline(courseId: string, refreshToken = 0): UseCourseO
     setLoading(true)
     setError(null)
     setNotFound(false)
+    setData(null)
 
-    void fetchCourseOutline(trimmed, controller.signal)
+    void fetchExamStatus(trimmed, controller.signal)
       .then((response) => {
         if (controller.signal.aborted) return
         setData(response)
       })
       .catch((err) => {
         if (controller.signal.aborted) return
-        if (err instanceof OutlineApiError && err.status === 404) {
+        if (err instanceof ExamStatusApiError && err.status === 404) {
           setNotFound(true)
           setData(null)
-          setError(`No outline for course “${trimmed}”.`)
+          setError(`No exam status for course “${trimmed}”.`)
           return
         }
         if (err instanceof DOMException && err.name === 'AbortError') return
         setData(null)
-        setError(err instanceof Error ? err.message : 'Could not load course outline.')
+        setError(err instanceof Error ? err.message : 'Could not load exam status.')
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false)
@@ -63,5 +66,8 @@ export function useCourseOutline(courseId: string, refreshToken = 0): UseCourseO
     return () => abortRef.current?.abort()
   }, [load])
 
-  return { data, loading, error, notFound, reload: load }
+  const examIndexReady = loading ? null : (data?.exam_index_ready ?? false)
+  const heatmapAvailable = loading ? null : (data?.heatmap_available ?? false)
+
+  return { data, loading, error, notFound, examIndexReady, heatmapAvailable, reload: load }
 }

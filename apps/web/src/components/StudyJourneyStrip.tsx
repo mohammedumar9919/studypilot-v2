@@ -1,4 +1,5 @@
-import type { QueryStage } from '../types'
+import type { QueryPreset, QueryStage } from '../types'
+import { isExamPreset } from '../constants/queryPresets'
 
 const STEPS = [
   { id: 'start', label: 'Upload', number: '01' },
@@ -13,6 +14,11 @@ interface StudyJourneyStripProps {
   hasSources: boolean
   hasAnswer: boolean
   uploadIndexing?: boolean
+  queryPreset?: QueryPreset
+}
+
+function isReviewPreset(preset: QueryPreset | undefined): boolean {
+  return preset === 'summary' || preset === 'flashcards'
 }
 
 function stepLabel(index: number, baseLabel: string, uploadIndexing: boolean, stage: QueryStage): string {
@@ -27,17 +33,23 @@ function activeStepIndex(
   hasSources: boolean,
   hasAnswer: boolean,
   uploadIndexing: boolean,
+  queryPreset?: QueryPreset,
 ): number {
   if (uploadIndexing) return 0
+
+  const reviewPreset = isReviewPreset(queryPreset)
+  const examPreset = isExamPreset(queryPreset)
 
   switch (stage) {
     case 'retrieving':
       return 1
     case 'generating':
-      if (hasAnswer) return 3
+      if (hasAnswer) return examPreset ? 4 : 3
       if (hasSources) return 2
       return 1
     case 'done':
+      if (examPreset) return 4
+      if (reviewPreset) return 3
       return 4
     case 'error':
       return 0
@@ -51,9 +63,12 @@ export function StudyJourneyStrip({
   hasSources,
   hasAnswer,
   uploadIndexing = false,
+  queryPreset = 'study',
 }: StudyJourneyStripProps) {
-  const active = activeStepIndex(stage, hasSources, hasAnswer, uploadIndexing)
+  const active = activeStepIndex(stage, hasSources, hasAnswer, uploadIndexing, queryPreset)
   const isLoading = uploadIndexing || stage === 'retrieving' || stage === 'generating'
+  const presetFocusReview = isReviewPreset(queryPreset) && stage === 'idle'
+  const presetFocusExam = isExamPreset(queryPreset) && stage === 'idle'
 
   return (
     <nav className="study-journey reveal-on-load" aria-label="Study journey">
@@ -61,6 +76,8 @@ export function StudyJourneyStrip({
         {STEPS.map((step, index) => {
           const isActive = index === active && (isLoading || stage === 'done')
           const isComplete = index < active || (stage === 'done' && index <= active)
+          const isPresetFocus =
+            (presetFocusReview && index === 3) || (presetFocusExam && index === 4)
 
           return (
             <li
@@ -69,6 +86,7 @@ export function StudyJourneyStrip({
                 'study-journey-step',
                 isActive ? 'is-active' : '',
                 isComplete ? 'is-complete' : '',
+                isPresetFocus ? 'is-preset-focus' : '',
               ]
                 .filter(Boolean)
                 .join(' ')}

@@ -14,7 +14,7 @@ interface UseStudyQueryResult {
   result: QueryResponse | null
   error: string | null
   streamNotice: string | null
-  submit: (request: Omit<QueryRequest, 'preset'>, options?: SubmitOptions) => Promise<void>
+  submit: (request: QueryRequest, options?: SubmitOptions) => Promise<void>
   reset: () => void
 }
 
@@ -82,12 +82,12 @@ export function useStudyQuery(): UseStudyQueryResult {
   )
 
   const submit = useCallback(
-    async (request: Omit<QueryRequest, 'preset'>, options?: SubmitOptions) => {
+    async (request: QueryRequest, options?: SubmitOptions) => {
       abortRef.current?.abort()
       const controller = new AbortController()
       abortRef.current = controller
 
-      const body: QueryRequest = { ...request, preset: 'study' }
+      const body: QueryRequest = request
       const useStream = options?.useStream ?? false
 
       setResult(null)

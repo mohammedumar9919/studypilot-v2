@@ -9,21 +9,24 @@ Minimal study query UI with chunk inspector and rerank debug panel.
 
 ## Dev setup
 
-If the UI shows **502 Bad Gateway**, the API is not running on the port in `vite.config.ts` (usually **8001**).
+If the UI shows **502 Bad Gateway**, the API is not running on the port in `vite.config.ts` (default **8002**).
 
 **Terminal 1 — API**
 
 ```powershell
-cd C:\Projects\studypilot-v2\apps\api
-.\.venv\Scripts\Activate.ps1
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+cd C:\Projects\studypilot-v2
+.\scripts\start_api.ps1
 ```
 
-If port **8000** is stuck (orphan `python.exe`), use **8001** and ensure `vite.config.ts` proxy target matches:
+Or manually (default proxy is **8002** — orphan old uvicorn may block **8001**):
 
 ```powershell
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8001
+cd C:\Projects\studypilot-v2\apps\api
+.\.venv\Scripts\Activate.ps1
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8002
 ```
+
+Verify: `(Invoke-RestMethod http://127.0.0.1:8002/health).exam_questions_ppl` → **377** after PYQ re-ingest.
 
 **Terminal 2 — Web**
 
