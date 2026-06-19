@@ -1,13 +1,13 @@
 # PPL previous papers.pdf — human-reviewable PYQ → unit/section seed (v1)
 #
-# OCR re-ingest complete (Phase 3C-A2): ~26/30 pages readable; seed still maps page 3
-# (July 2021 exam) in detail. Other readable pages contribute via keyword matching.
+# OCR re-ingest (SP-043): 29/30 pages readable; page 2 blank (no OCR text). Seed maps page 3
+# (July 2021 exam) in detail; pages 28–30 fixed via OCR trigger <= threshold in pdf_extract.
 #
 # Page index: 1-based (matches chunk.page in DB for past_paper ingest).
 
 course: PPL
 document: PPL previous papers.pdf
-coverage_note: "partial — seed maps page 3 in detail; remaining pages via OCR + keyword estimate"
+coverage_note: "29/30 readable after SP-043 OCR; seed maps page 3 in detail; keyword estimate on other pages"
 
 covered_pages:
   - 3
@@ -199,7 +199,5 @@ questions:
 
 # Future OCR — not counted until pages are readable and seed/OCR entries added.
 future_ocr_placeholders:
-  - pages: [1, 2]
-    note: "Cover / index pages — pending OCR"
-  - pages: [4, 29]
-    note: "Remaining scanned exam papers — pending OCR re-ingest"
+  - pages: [2]
+    note: "Blank page — native and Tesseract both return 0 chars (SP-042 Docling optional)"

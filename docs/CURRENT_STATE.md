@@ -1,6 +1,6 @@
 # StudyPilot v2 — Current State
 
-**Last updated:** 2026-06-15  
+**Last updated:** 2026-06-19  
 **Status owner:** Lead orchestrator (update this file after every phase gate or major eval run)
 
 This is the **single source of truth** for execution status. A new Cursor chat should read this first, then [LEAD_ORCHESTRATOR.md](LEAD_ORCHESTRATOR.md) and [COUNCIL_ORCHESTRATION.md](COUNCIL_ORCHESTRATION.md).
@@ -53,6 +53,8 @@ This is the **single source of truth** for execution status. A new Cursor chat s
 | SP-053d Modular syllabus depth (Phase S) | **DONE** | DS + CN parser; `datascience_syllabus.txt` fixture; pytest 45/45 |
 
 **Status:** **Phase B — Product shell DONE.** **Phase C — Platform slices DONE** (013a–c, 045a/b, 004a). **DEFERRED:** Phase E (SP-042d, exam golden), Phase B polish (012.5), SP-014 observability.
+
+**Gate remediation (2026-06-19):** Full `quick_gate` FAIL was env/data, not a code regression. Root cause of OOC 8/10: `engineering chemistry updated.pdf` was wrongly ingested under `course_id=PPL`, so `ppl-ooc-04`/`ppl-ooc-06` retrieved chemistry pages instead of refusing. Fixed by pruning the mis-ingested doc from PPL (`apps/api/scripts/cleanup_ppl_corpus.py`); the `chemistry` course keeps its copy. pytest "too many clients"/deadlock was eval+pytest connection overlap. **Post-fix: OOC 10/10, 0/40 in-corpus refused, pytest 346 passed.**
 
 ### Build order (product-first)
 
