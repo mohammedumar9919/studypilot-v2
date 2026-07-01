@@ -78,6 +78,7 @@ def compute_exam_analytics(
     sort: str = "weightage_desc",
     include_unclassified: bool = False,
     min_questions: int = 1,
+    include_structure: str = "auto",
 ) -> dict[str, Any]:
     """Aggregate persisted exam concept analytics for a course."""
     status = compute_exam_status(session, course_id)
@@ -254,7 +255,7 @@ def compute_exam_analytics(
     for rank, row in enumerate(page, start=offset + 1):
         row["rank"] = rank
 
-    return {
+    payload = {
         "found": True,
         "course_id": course_id,
         "tier": 1,
@@ -272,6 +273,21 @@ def compute_exam_analytics(
         "concepts": page,
         "pagination": {"limit": limit, "offset": offset, "total": total},
     }
+
+    from app.services.exam.analytics_structure import maybe_attach_structure
+
+    return maybe_attach_structure(
+        session,
+        course_id,
+        payload,
+        include_structure=include_structure,
+        concepts=concepts,
+        links=links,
+        questions=questions,
+        parsed_questions=parsed_questions,
+        total_marks=total_marks,
+        distinct_paper_count=distinct_paper_count,
+    )
 
 
 def compute_exam_analytics_json(session: Session, course_id: str, **kwargs: Any) -> str:

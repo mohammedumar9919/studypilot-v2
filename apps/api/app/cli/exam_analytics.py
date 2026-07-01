@@ -16,6 +16,12 @@ def main() -> None:
     parser.add_argument("--sort", default="weightage_desc")
     parser.add_argument("--include-unclassified", action="store_true")
     parser.add_argument("--min-questions", type=int, default=1)
+    parser.add_argument(
+        "--include-structure",
+        default="auto",
+        choices=["auto", "true", "false"],
+        help="Tier 3 structure block (default: auto)",
+    )
     args = parser.parse_args()
 
     with SessionLocal() as session:
@@ -28,6 +34,7 @@ def main() -> None:
                 sort=args.sort,
                 include_unclassified=args.include_unclassified,
                 min_questions=args.min_questions,
+                include_structure=args.include_structure,
             )
         )
 

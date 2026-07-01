@@ -535,10 +535,11 @@ def exam_analytics(
     sort: str = "weightage_desc",
     include_unclassified: bool = False,
     min_questions: int = 1,
+    include_structure: str = "auto",
     session: Session = Depends(get_session),
     _course: Course = Depends(require_course_access_dep),
 ) -> dict:
-    """Read-only Tier 1 exam concept analytics (marks-weighted; no LLM)."""
+    """Read-only Tier 1/3 exam concept analytics (marks-weighted; no LLM)."""
     try:
         result = compute_exam_analytics(
             session,
@@ -548,6 +549,7 @@ def exam_analytics(
             sort=sort,
             include_unclassified=include_unclassified,
             min_questions=min_questions,
+            include_structure=include_structure,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

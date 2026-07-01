@@ -51,9 +51,9 @@ This is the **single source of truth** for execution status. A new Cursor chat s
 | SP-053b Structure M2M + query scope (Phase S) | **DONE** | `unit_ids`/`part_ids`/`subtopic_ids`; pytest 44/44; commit `0fa34c1` |
 | SP-053c Unified Course structure UI (Phase S) | **DONE** | Sources \| Course structure tabs; Agent E; user UAT PASS |
 | SP-060a exam concept extraction (Phase E) | **DONE** | Alembic 009; YAKE extract + FastEmbed merge; ingest hook; pytest 16/16 |
-| SP-060b exam concept analytics API (Phase E) | **DONE** | `GET .../exam/analytics`; marks-weighted; pytest 7/7; api-contracts 1.10.0 |
+| SP-060c exam analytics structure mapping (Phase E) | **DONE** | Tier 3 rollup on `GET .../exam/analytics`; pytest 6/6; api-contracts 1.11.0 |
 
-**Status:** **Phase B — fully closed** (012a–d + **012.5 polish**). **Phase C — Platform slices DONE** (013a–c, 045a/b, 004a). **Phase E — SP-060a/060b DONE**. **NEXT: SP-060c** (structure mapping). **DEFERRED:** SP-014 observability, exam golden set, SP-041, SP-060d–060f.
+**Status:** **Phase B — fully closed** (012a–d + **012.5 polish**). **Phase C — Platform slices DONE** (013a–c, 045a/b, 004a). **Phase E — SP-060a/060b/060c DONE**. **NEXT: SP-060d** (answer-on-tap). **DEFERRED:** SP-014 observability, exam golden set, SP-041, SP-060e–060f.
 
 **Gate remediation (2026-06-19):** Full `quick_gate` FAIL was env/data, not a code regression. Root cause of OOC 8/10: `engineering chemistry updated.pdf` was wrongly ingested under `course_id=PPL`, so `ppl-ooc-04`/`ppl-ooc-06` retrieved chemistry pages instead of refusing. Fixed by pruning the mis-ingested doc from PPL (`apps/api/scripts/cleanup_ppl_corpus.py`); the `chemistry` course keeps its copy. pytest "too many clients"/deadlock was eval+pytest connection overlap. **Post-fix: OOC 10/10, 0/40 in-corpus refused, pytest 346 passed.**
 
@@ -66,7 +66,7 @@ This is the **single source of truth** for execution status. A new Cursor chat s
 | **S — Flex Study** | **DONE** | — |
 | **B — Full product shell** | **DONE** | 012a–012d + **012.5** polish complete |
 | **C — Platform** | **DONE** (planned slices) | 013a–c, 045a/b, 004a complete; SP-014/041 deferred |
-| **E — Exam intelligence** | **IN PROGRESS** | SP-060a/060b **DONE**; **NEXT: SP-060c** structure mapping |
+| **E — Exam intelligence** | **IN PROGRESS** | SP-060a/060b/060c **DONE**; **NEXT: SP-060d** answer-on-tap |
 
 ---
 
@@ -376,17 +376,19 @@ Retrieval untouched — no full eval for this closeout. Commit strategy: 3 logic
 
 ---
 
-## Phase E — Exam intelligence (SP-060a / SP-060b)
+## Phase E — Exam intelligence (SP-060a / SP-060b / SP-060c)
 
 | Deliverable | Status |
 |-------------|--------|
 | SP-060a Alembic 009 + concept derive engine | **DONE** |
 | SP-060b `GET .../exam/analytics` + `analytics.py` | **DONE** |
-| Marks-weighted weightage, pagination, sort, unclassified filter | **DONE** |
-| `exam_analytics` CLI + `pytest test_exam_analytics.py` | **7/7 PASS** (1 PPL smoke skipped in test DB) |
-| api-contracts **1.10.0** | **DONE** |
+| SP-060c Tier 3 structure mapping + `analytics_structure.py` | **DONE** |
+| Auto-map concepts → syllabus nodes; unmapped list; rollup | **DONE** |
+| `pytest test_exam_analytics_structure.py` | **6/6 PASS** |
+| Full Phase E pytest (concept + analytics + structure) | **29/29 PASS** (1 skipped) |
+| api-contracts **1.11.0** | **DONE** |
 
-**Council Stage 3:** SP-060b closed (2026-07-01). No retrieval touch — `quick_gate` not required.
+**Council Stage 3:** SP-060c closed (2026-07-01). No retrieval touch — `quick_gate` not required.
 
 ---
 
@@ -394,9 +396,9 @@ Retrieval untouched — no full eval for this closeout. Commit strategy: 3 logic
 
 | # | Priority | Item | Owner |
 |---|----------|------|-------|
-| 1 | **ACTIVE** | **SP-060c** structure mapping (concept → course units) | Lead + B/D |
-| 2 | **DEFER** | SP-060d answer-on-tap | — |
-| 3 | **DEFER** | SP-060e web Exam Analytics tab | E (blocked on 060c for Tier 3) |
+| 1 | **ACTIVE** | **SP-060d** answer-on-tap (Tier 2/3 study RAG) | D + E |
+| 2 | **DEFER** | SP-060e web Exam Analytics tab | E |
+| 3 | **DEFER** | SP-060f predictions | — |
 | 4 | **DEFER** | SP-014 observability / RAGAS | — |
 | 5 | **DEFER** | Exam golden set (human approval) | — |
 

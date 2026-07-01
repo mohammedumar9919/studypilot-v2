@@ -1,8 +1,10 @@
 # API & schema contracts (frozen)
 
-**Version:** 1.10.0  
+**Version:** 1.11.0  
 **Status:** Frozen for Phase 1 parallel work (Agent B ingest ∥ Agent C retrieval prep).  
 **Change process:** Orchestrator + human approval only. Bump version and notify all active agents.
+
+**1.11.0 (2026-07-01 — SP-060c):** Tier 3 structure extension on `GET .../exam/analytics`. Query param `include_structure` (`auto` \| `true` \| `false`, default `auto`). When `structure_mode == "mapped"` and `course_units` exist, response adds `tier: 3`, `structure.units[]` tree with per-node exam metrics (rollup subtopic → part → unit), and `unmapped_concepts[]` for syllabus-gap concepts. Auto-mapping: normalized substring match + FastEmbed cosine ≥ **0.75** (local only). Tier 1 flat `concepts[]` unchanged when structure absent or `include_structure=false`. No manual concept→node M2M in v1.
 
 **1.10.0 (2026-07-01 — SP-060b):** Read-only Tier 1 exam concept analytics API `GET /api/v1/courses/{course_id}/exam/analytics`. Aggregates persisted `exam_concepts` / `exam_question_concepts` with marks-weighted `weightage_pct` (primary), `count_pct` (secondary), pagination (`limit` default 50, max 200), sort (`weightage_desc` \| `count_desc` \| `label_asc`), `include_unclassified` (default false), `min_questions` filter. Gates on `parsed_questions > 0` via `compute_exam_status()`. Null `exam_questions.marks` treated as **1** for aggregation. Long/short split at **8** marks. Paper reach + recurrence from `paper_label`; trend slope from best-effort year parse. CLI: `python -m app.cli.exam_analytics --course PPL`. **No retrieval or web changes.**
 
@@ -843,7 +845,7 @@ python -m app.cli.derive_exam_concepts --course <course_id>
 
 **`DeriveStats` fields:** `course_id`, `question_count`, `concept_count`, `classified_concept_count`, `alias_count`, `linked_questions`, `unclassified_only_questions`, `unclassified_pct`.
 
-### `GET /api/v1/courses/{course_id}/exam/analytics` (SP-060b — Tier 1)
+### `GET /api/v1/courses/{course_id}/exam/analytics` (SP-060b / SP-060c)
 
 Read-only concept analytics from persisted `exam_concepts` data. **No query-time extraction, no LLM, no side effects.** Legacy `GET .../exam/topic-frequency` unchanged.
 
@@ -856,8 +858,19 @@ Read-only concept analytics from persisted `exam_concepts` data. **No query-time
 | `sort` | `weightage_desc` | `weightage_desc` \| `count_desc` \| `label_asc` |
 | `include_unclassified` | `false` | Include Unclassified bucket in `concepts[]` |
 | `min_questions` | `1` | Filter concepts below unique-question threshold |
+| `include_structure` | `auto` | `auto` \| `true` \| `false` — Tier 3 structure block (SP-060c) |
 
-**Response (200, ready):** `{ course_id, tier: 1, analytics_ready: true, summary, concepts[], pagination }`
+**Tier detection:** `tier: 1` when no parsed questions, no `course_units`, or `structure_mode != "mapped"`. `tier: 3` when `structure_mode == "mapped"`, units exist, and `include_structure` is `auto` or `true`.
+
+**Response (200, tier 1 ready):** `{ course_id, tier: 1, analytics_ready: true, summary, concepts[], pagination }`
+
+**Response (200, tier 3 ready):** tier 1 fields **plus** `structure: { structure_mode, units[] }` and `unmapped_concepts[]`.
+
+**Per-node fields (tier 3):** `unit_id` / `part_id` / `subtopic_id`, `title`, `question_count`, `unique_question_count`, `marks_total`, `weightage_pct`, `count_pct`, `long_count`, `short_count`, `paper_reach`, `recurrence_rate`, `concept_count`, `mapped_concept_ids`, nested `parts[]` / `subtopics[]`. Zero-question nodes included.
+
+**Unmapped concepts:** classified concepts with no syllabus node match (substring + FastEmbed ≥ **0.75**); syllabus-gap signal — never forced into Unit 1.
+
+**Auto-mapping (v1):** deterministic only; one primary node per concept; manual M2M overrides deferred.
 
 **`summary` fields:** `question_count`, `concept_count`, `classified_concept_count`, `unclassified_only_questions`, `unclassified_pct`, `total_marks`, `distinct_papers`, `long_question_threshold_marks` (**8**).
 
