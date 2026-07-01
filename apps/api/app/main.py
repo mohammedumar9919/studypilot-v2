@@ -14,6 +14,7 @@ from app.services.course_outline import get_course_outline, rebuild_course_outli
 from app.services.exam.topic_frequency import count_parsed_questions
 from app.services.document_upload import IngestFailedError, UploadValidationError, upload_and_ingest_document
 from app.services.ingest_queue import get_ingest_status
+from app.services.exam.analytics import compute_exam_analytics
 from app.services.exam.exam_status import compute_exam_status
 from app.services.exam.topic_frequency import compute_topic_frequency
 from app.services.course_map import (
@@ -521,6 +522,35 @@ def exam_topic_frequency(
     """Read-only PYQ topic/unit frequency (seed + keyword; no LLM)."""
     include_sections = detail == "sections"
     result = compute_topic_frequency(session, course_id, include_section_detail=include_sections)
+    if not result.get("found"):
+        raise HTTPException(status_code=404, detail=f"Course not found: {course_id}")
+    return {key: value for key, value in result.items() if key != "found"}
+
+
+@app.get("/api/v1/courses/{course_id}/exam/analytics")
+def exam_analytics(
+    course_id: str,
+    limit: int = 50,
+    offset: int = 0,
+    sort: str = "weightage_desc",
+    include_unclassified: bool = False,
+    min_questions: int = 1,
+    session: Session = Depends(get_session),
+    _course: Course = Depends(require_course_access_dep),
+) -> dict:
+    """Read-only Tier 1 exam concept analytics (marks-weighted; no LLM)."""
+    try:
+        result = compute_exam_analytics(
+            session,
+            course_id,
+            limit=limit,
+            offset=offset,
+            sort=sort,
+            include_unclassified=include_unclassified,
+            min_questions=min_questions,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not result.get("found"):
         raise HTTPException(status_code=404, detail=f"Course not found: {course_id}")
     return {key: value for key, value in result.items() if key != "found"}

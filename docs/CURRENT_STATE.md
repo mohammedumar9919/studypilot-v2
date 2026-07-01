@@ -1,6 +1,6 @@
 # StudyPilot v2 — Current State
 
-**Last updated:** 2026-06-19  
+**Last updated:** 2026-07-01  
 **Status owner:** Lead orchestrator (update this file after every phase gate or major eval run)
 
 This is the **single source of truth** for execution status. A new Cursor chat should read this first, then [LEAD_ORCHESTRATOR.md](LEAD_ORCHESTRATOR.md) and [COUNCIL_ORCHESTRATION.md](COUNCIL_ORCHESTRATION.md).
@@ -50,9 +50,10 @@ This is the **single source of truth** for execution status. A new Cursor chat s
 | SP-053a.1b Parser hotfix (Phase S) | **DONE** | Line-wrap merge, colon/bold parts, Roman title repair |
 | SP-053b Structure M2M + query scope (Phase S) | **DONE** | `unit_ids`/`part_ids`/`subtopic_ids`; pytest 44/44; commit `0fa34c1` |
 | SP-053c Unified Course structure UI (Phase S) | **DONE** | Sources \| Course structure tabs; Agent E; user UAT PASS |
-| SP-053d Modular syllabus depth (Phase S) | **DONE** | DS + CN parser; `datascience_syllabus.txt` fixture; pytest 45/45 |
+| SP-060a exam concept extraction (Phase E) | **DONE** | Alembic 009; YAKE extract + FastEmbed merge; ingest hook; pytest 16/16 |
+| SP-060b exam concept analytics API (Phase E) | **DONE** | `GET .../exam/analytics`; marks-weighted; pytest 7/7; api-contracts 1.10.0 |
 
-**Status:** **Phase B — Product shell DONE.** **Phase C — Platform slices DONE** (013a–c, 045a/b, 004a). **DEFERRED:** Phase E (SP-042d, exam golden), Phase B polish (012.5), SP-014 observability.
+**Status:** **Phase B — fully closed** (012a–d + **012.5 polish**). **Phase C — Platform slices DONE** (013a–c, 045a/b, 004a). **Phase E — SP-060a/060b DONE**. **NEXT: SP-060c** (structure mapping). **DEFERRED:** SP-014 observability, exam golden set, SP-041, SP-060d–060f.
 
 **Gate remediation (2026-06-19):** Full `quick_gate` FAIL was env/data, not a code regression. Root cause of OOC 8/10: `engineering chemistry updated.pdf` was wrongly ingested under `course_id=PPL`, so `ppl-ooc-04`/`ppl-ooc-06` retrieved chemistry pages instead of refusing. Fixed by pruning the mis-ingested doc from PPL (`apps/api/scripts/cleanup_ppl_corpus.py`); the `chemistry` course keeps its copy. pytest "too many clients"/deadlock was eval+pytest connection overlap. **Post-fix: OOC 10/10, 0/40 in-corpus refused, pytest 346 passed.**
 
@@ -63,9 +64,9 @@ This is the **single source of truth** for execution status. A new Cursor chat s
 | **A — Study workspace** | **DONE** (presets, outline pipeline, exam mode) | — |
 | **A.5 — Exam Truth** | **DONE** | — |
 | **S — Flex Study** | **DONE** | — |
-| **B — Full product shell** | **DONE** | SP-012a–012d complete |
+| **B — Full product shell** | **DONE** | 012a–012d + **012.5** polish complete |
 | **C — Platform** | **DONE** (planned slices) | 013a–c, 045a/b, 004a complete; SP-014/041 deferred |
-| **E — Exam golden / PYQ** | **DEFERRED** | SP-042d, exam golden set — Human Gate 0 not approved |
+| **E — Exam intelligence** | **IN PROGRESS** | SP-060a/060b **DONE**; **NEXT: SP-060c** structure mapping |
 
 ---
 
@@ -329,16 +330,19 @@ Brief: [DESIGN_DIRECTION_WAVE4A.md](DESIGN_DIRECTION_WAVE4A.md)
 | SP-012b Clerk JWT + dev bypass | **DONE** | Route guards on course/query/doc PATCH; bypass env; pytest 4/4; smoke 100%/10/10; commit `6a79564` |
 | SP-012c Workspace course APIs | **DONE** | `GET/POST /api/v1/workspaces/me/courses`; upload auto-create; pytest 7/7; api-contracts **1.6.0** |
 | SP-012d Multi-page shell | **DONE** | react-router + Clerk React; `/courses` dashboard; `authFetch` on all clients; `npm run build` PASS; user UAT PASS |
+| SP-012.5 Phase B polish | **DONE** | Catch-all route → `/courses`; Vite dev port default **5175**; `.env.example` + Clerk prod docs; CoursesPage card-grid CSS; `npm run build` PASS |
+
+**Council Stage 3:** SP-012.5 **closed** (2026-06-29). Agent E only; no backend/retrieval touch. UAT: `/foo` → `/courses` on `:5175`; courses create + list.
 
 **Council Stage 3:** SP-012d **closed** (2026-06-02). User UAT: `http://127.0.0.1:5175/courses` → PPL study flow (port **5175** — Weathero occupies `:5173`).
 
 **Human Gate 0:** Clerk auth; `STUDYPILOT_AUTH_DISABLED=1` for pytest/eval.
 
-**Deferred:** SP-042d, exam golden set, Phase E past-paper work.
+**Deferred:** exam golden set (human approval).
 
 ---
 
-## Phase C — Platform (IN PROGRESS)
+## Phase C — Platform (DONE)
 
 | Slice | Status | Owner | Goal |
 |-------|--------|-------|------|
@@ -372,15 +376,29 @@ Retrieval untouched — no full eval for this closeout. Commit strategy: 3 logic
 
 ---
 
+## Phase E — Exam intelligence (SP-060a / SP-060b)
+
+| Deliverable | Status |
+|-------------|--------|
+| SP-060a Alembic 009 + concept derive engine | **DONE** |
+| SP-060b `GET .../exam/analytics` + `analytics.py` | **DONE** |
+| Marks-weighted weightage, pagination, sort, unclassified filter | **DONE** |
+| `exam_analytics` CLI + `pytest test_exam_analytics.py` | **7/7 PASS** (1 PPL smoke skipped in test DB) |
+| api-contracts **1.10.0** | **DONE** |
+
+**Council Stage 3:** SP-060b closed (2026-07-01). No retrieval touch — `quick_gate` not required.
+
+---
+
 ## What's NEXT
 
 | # | Priority | Item | Owner |
 |---|----------|------|-------|
-| 1 | **Commit** | `commit Phase C platform` — 3 logical commits (013a/b API, 013c web, 045a/b ingest) + SP-004a | Lead |
-| 2 | **DEFER** | SP-014 observability / RAGAS | — |
-| 3 | **DEFER** | SP-042d PYQ unit classification (Phase E) | — |
+| 1 | **ACTIVE** | **SP-060c** structure mapping (concept → course units) | Lead + B/D |
+| 2 | **DEFER** | SP-060d answer-on-tap | — |
+| 3 | **DEFER** | SP-060e web Exam Analytics tab | E (blocked on 060c for Tier 3) |
+| 4 | **DEFER** | SP-014 observability / RAGAS | — |
 | 5 | **DEFER** | Exam golden set (human approval) | — |
-| 6 | **DEFER** | Phase B polish (012.5: CSS, Clerk prod, port docs) | — |
 
 ---
 
