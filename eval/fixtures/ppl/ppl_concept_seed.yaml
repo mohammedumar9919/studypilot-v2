@@ -1,0 +1,43 @@
+# PPL exam concept seed for SP-060a algorithm tests (NOT golden_set.jsonl)
+#
+# Maps synthetic / fixture prompts to expected concept labels after derive.
+# Used to validate extract + canonicalize behavior without full PDF ingest.
+
+course: PPL
+
+fixture_prompts:
+  - prompt: "What are the three fundamental features of Object Oriented Programming?"
+    min_concepts: 1
+    expect_labels_contain:
+      - "object oriented programming"
+
+  - prompt: "Define Operator precedence and operator associativity"
+    min_concepts: 1
+    expect_labels_contain:
+      - "operator precedence"
+
+  - prompt: "Describe the basic concept of Denotational Semantics."
+    min_concepts: 1
+    expect_labels_contain:
+      - "denotational semantics"
+
+acronym_cases:
+  - prompt: "Explain Abstract Data Types (ADT) in OOP."
+    expect_linked_terms:
+      - "abstract data types"
+      - "adt"
+
+multi_label_case:
+  prompt: "Compare static typing and dynamic typing in programming languages."
+  min_concepts: 2
+
+unclassified_case:
+  prompt: "???"
+  expect_unclassified_only: true
+
+idempotent_questions:
+  - "Define polymorphism and inheritance in OOP."
+  - "What is lexical scoping?"
+  - "Explain recursive descent parsing."
+  - "Describe garbage collection strategies."
+  - "What is type inference?"
