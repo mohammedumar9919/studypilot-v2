@@ -51,6 +51,7 @@ This is the **single source of truth** for execution status. A new Cursor chat s
 | SP-053b Structure M2M + query scope (Phase S) | **DONE** | `unit_ids`/`part_ids`/`subtopic_ids`; pytest 44/44; commit `0fa34c1` |
 | SP-053c Unified Course structure UI (Phase S) | **DONE** | Sources \| Course structure tabs; Agent E; user UAT PASS |
 | SP-060a exam concept extraction (Phase E) | **DONE** | Alembic 009; YAKE extract + FastEmbed merge; ingest hook; pytest 16/16 |
+| SP-060b exam concept analytics API (Phase E) | **DONE** | `GET .../exam/analytics`; marks-weighted; pytest 7/7; api-contracts 1.10.0 |
 | SP-060c exam analytics structure mapping (Phase E) | **DONE** | Tier 3 rollup on `GET .../exam/analytics`; pytest 6/6; api-contracts 1.11.0 |
 
 **Status:** **Phase B — fully closed** (012a–d + **012.5 polish**). **Phase C — Platform slices DONE** (013a–c, 045a/b, 004a). **Phase E — SP-060a/060b/060c DONE**. **NEXT: SP-060d** (answer-on-tap). **DEFERRED:** SP-014 observability, exam golden set, SP-041, SP-060e–060f.
