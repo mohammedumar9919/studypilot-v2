@@ -7,7 +7,7 @@ import type {
 } from '../types'
 import { CourseMapPromotionPanel } from './CourseMapPromotionPanel'
 import { CourseOutlineSidebar } from './CourseOutlineSidebar'
-import { TopicFrequencyPanel } from './TopicFrequencyPanel'
+import { ExamAnalyticsPanel } from './ExamAnalyticsPanel'
 
 interface CourseMapTabPanelProps {
   courseId: string
@@ -75,7 +75,7 @@ export function CourseMapTabPanel({
           onOutlineState={onOutlineState}
         />
 
-        <TopicFrequencyPanel
+        <ExamAnalyticsPanel
           courseId={courseId}
           refreshToken={refreshToken}
           queryPreset={queryPreset}
