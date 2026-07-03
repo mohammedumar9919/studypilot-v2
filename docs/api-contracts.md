@@ -1,8 +1,10 @@
 # API & schema contracts (frozen)
 
-**Version:** 1.11.0  
+**Version:** 1.12.0  
 **Status:** Frozen for Phase 1 parallel work (Agent B ingest ∥ Agent C retrieval prep).  
 **Change process:** Orchestrator + human approval only. Bump version and notify all active agents.
+
+**1.12.0 (2026-07-01 — SP-060d):** Answer-on-tap `POST /api/v1/courses/{course_id}/exam/answer`. Body: exactly one of `{ concept_id }` OR `{ question_id, structure_node_id? }`. Study lane only (`preset=study` via `run_study_question`); never `past_paper` retrieval. Tier 1 empty when no ready study docs (`answers_available: false`, `status: no_study_docs`, no LLM). Marks-based LLM budget when `question_id`: ≥8 → `quality`/long, 4–7 → `balanced`/medium, else `budget`/short. Optional `structure_node_id` scopes retrieval via `expand_structure_scope_to_document_ids` → `source_ids`. Response includes grounded `answer`, `sources[]`, per-PDF `coverage` hit/miss. Gate refuse: `status: not_in_materials`, `answer: null`. Optional `llm_budget_tier` on `generate_study_answer` only (no `pipeline.py` changes).
 
 **1.11.0 (2026-07-01 — SP-060c):** Tier 3 structure extension on `GET .../exam/analytics`. Query param `include_structure` (`auto` \| `true` \| `false`, default `auto`). When `structure_mode == "mapped"` and `course_units` exist, response adds `tier: 3`, `structure.units[]` tree with per-node exam metrics (rollup subtopic → part → unit), and `unmapped_concepts[]` for syllabus-gap concepts. Auto-mapping: normalized substring match + FastEmbed cosine ≥ **0.75** (local only). Tier 1 flat `concepts[]` unchanged when structure absent or `include_structure=false`. No manual concept→node M2M in v1.
 
@@ -886,7 +888,7 @@ Read-only concept analytics from persisted `exam_concepts` data. **No query-time
 
 **CLI:** `python -m app.cli.exam_analytics --course <course_id>`
 
-**Python entrypoint:**
+**Python entrypoint (analytics):**
 
 ```python
 def compute_exam_analytics(
@@ -900,6 +902,44 @@ def compute_exam_analytics(
     min_questions: int = 1,
 ) -> dict: ...
 ```
+
+### `POST /api/v1/courses/{course_id}/exam/answer` (SP-060d)
+
+Ground an exam **concept** or parsed **question** in study materials (`notes` / `textbook` / `syllabus` only). **Never** uses `past_paper` retrieval or `preset=exam`.
+
+**Request body (exactly one target):**
+
+```json
+{ "concept_id": "uuid" }
+```
+
+OR
+
+```json
+{ "question_id": "uuid", "structure_node_id": "uuid-optional" }
+```
+
+| Field | Required | Purpose |
+|-------|----------|---------|
+| `concept_id` | XOR with `question_id` | Tap a canonical exam concept |
+| `question_id` | XOR with `concept_id` | Tap a parsed past-paper question |
+| `structure_node_id` | optional | Tier 3 scope: unit, part, or subtopic UUID → document filter |
+
+**Response (200, ok):** `{ course_id, tier, answers_available, target_type, target_id, query_text, answer_length, status, answer, sources[], coverage }`
+
+**`coverage`:** `{ documents: [{ document_id, filename, status: hit\|miss, top_rerank_score? }], hit_count, miss_count }` over ready study PDFs for the course.
+
+**`answer_length`:** `short` \| `medium` \| `long` (marks-based for questions; `short` for concepts).
+
+**Response (200, tier 1 — no study docs):** `tier: 1`, `answers_available: false`, `status: no_study_docs`, `answer: null`, no LLM.
+
+**Response (200, gate refuse):** `status: not_in_materials`, `answer: null`, `coverage` populated.
+
+**Response (400):** both/neither target; invalid UUID.
+
+**Response (404):** unknown concept, question, or structure node.
+
+**Python entrypoint:** `answer_exam_concept_or_question(session, course_id, ...)`
 
 **Example — generic Chemistry heatmap (unit rollup, default):**
 

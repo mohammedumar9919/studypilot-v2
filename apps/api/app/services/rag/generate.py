@@ -9,7 +9,7 @@ from typing import Any
 
 import httpx
 
-from app.config import settings
+from app.config import LLM_BUDGET_TIERS, settings
 from app.services.rag.retrieve import RetrievedChunk
 
 logger = logging.getLogger(__name__)
@@ -121,12 +121,16 @@ def _prepare_generation(
     chunks: list[RetrievedChunk],
     *,
     preset: str,
+    llm_budget_tier: str | None = None,
 ) -> tuple[list[dict[str, str]], str, int, float]:
     validate_preset(preset)
     if not chunks:
         raise ValueError("generation requires at least one chunk")
 
-    tier = settings.llm_budget_tier()
+    if llm_budget_tier:
+        tier = LLM_BUDGET_TIERS.get(llm_budget_tier, LLM_BUDGET_TIERS["budget"])
+    else:
+        tier = settings.llm_budget_tier()
     limited = chunks[: tier["parent_chunks"]]
     messages = _build_messages(question, limited, preset=preset)
     return (
@@ -276,10 +280,11 @@ def generate_study_answer(
     chunks: list[RetrievedChunk],
     *,
     preset: str = "study",
+    llm_budget_tier: str | None = None,
 ) -> str:
     """Generate grounded output from retrieved chunks (study, summary, or flashcards)."""
     messages, model, max_tokens, temperature = _prepare_generation(
-        question, chunks, preset=preset
+        question, chunks, preset=preset, llm_budget_tier=llm_budget_tier
     )
     return _complete(
         messages,

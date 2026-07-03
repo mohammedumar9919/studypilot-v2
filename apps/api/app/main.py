@@ -2,7 +2,7 @@ import uuid
 from typing import Any
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.orm import Session
 from starlette.responses import JSONResponse, StreamingResponse
 
@@ -15,6 +15,7 @@ from app.services.exam.topic_frequency import count_parsed_questions
 from app.services.document_upload import IngestFailedError, UploadValidationError, upload_and_ingest_document
 from app.services.ingest_queue import get_ingest_status
 from app.services.exam.analytics import compute_exam_analytics
+from app.services.exam.exam_answer import answer_exam_concept_or_question
 from app.services.exam.exam_status import compute_exam_status
 from app.services.exam.topic_frequency import compute_topic_frequency
 from app.services.course_map import (
@@ -98,6 +99,20 @@ class QueryResponse(BaseModel):
     sources: list[SourceResponse] = Field(default_factory=list)
     rerank_scores: list[float] = Field(default_factory=list)
     retrieval_debug: dict | None = None
+
+
+class ExamAnswerRequest(BaseModel):
+    concept_id: str | None = None
+    question_id: str | None = None
+    structure_node_id: str | None = None
+
+    @model_validator(mode="after")
+    def exactly_one_target(self) -> "ExamAnswerRequest":
+        has_concept = self.concept_id is not None
+        has_question = self.question_id is not None
+        if has_concept == has_question:
+            raise ValueError("Exactly one of concept_id or question_id is required")
+        return self
 
 
 def _resolve_source_ids(
@@ -555,6 +570,52 @@ def exam_analytics(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not result.get("found"):
         raise HTTPException(status_code=404, detail=f"Course not found: {course_id}")
+    return {key: value for key, value in result.items() if key != "found"}
+
+
+@app.post("/api/v1/courses/{course_id}/exam/answer")
+def exam_answer(
+    course_id: str,
+    body: ExamAnswerRequest,
+    session: Session = Depends(get_session),
+    _course: Course = Depends(require_course_access_dep),
+) -> dict:
+    """Ground an exam concept or parsed question in study materials (study lane only)."""
+    try:
+        concept_uuid = uuid.UUID(body.concept_id) if body.concept_id else None
+        question_uuid = uuid.UUID(body.question_id) if body.question_id else None
+        structure_uuid = (
+            uuid.UUID(body.structure_node_id) if body.structure_node_id else None
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid UUID in request body") from exc
+
+    try:
+        result = answer_exam_concept_or_question(
+            session,
+            course_id,
+            concept_id=concept_uuid,
+            question_id=question_uuid,
+            structure_node_id=structure_uuid,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except OpenRouterGenerationError as exc:
+        status = exc.status_code if exc.status_code in (401, 402, 429) else 502
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        if "OPENROUTER_API_KEY" in str(exc):
+            raise HTTPException(
+                status_code=503,
+                detail="OPENROUTER_API_KEY is not set. Add it to apps/api/.env and restart the server.",
+            ) from exc
+        raise
+
+    if not result.get("found"):
+        detail = "Concept not found" if body.concept_id else "Question not found"
+        raise HTTPException(status_code=404, detail=detail)
     return {key: value for key, value in result.items() if key != "found"}
 
 
