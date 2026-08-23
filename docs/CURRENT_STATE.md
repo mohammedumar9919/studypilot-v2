@@ -1,6 +1,6 @@
 # StudyPilot v2 — Current State
 
-**Last updated:** 2026-08-22  
+**Last updated:** 2026-08-23  
 **Status owner:** Lead orchestrator (update this file after every phase gate or major eval run)
 
 This is the **single source of truth** for execution status. A new Cursor chat should read this first, then [LEAD_ORCHESTRATOR.md](LEAD_ORCHESTRATOR.md) and [COUNCIL_ORCHESTRATION.md](COUNCIL_ORCHESTRATION.md).
@@ -63,8 +63,9 @@ This is the **single source of truth** for execution status. A new Cursor chat s
 | SP-062b chemistry parse code-assign + skip harvest (Phase F) | **DONE** | 13/13 codes; replay 100→156 drafts |
 | SP-062c chemistry parse sub-part expansion (Phase F) | **DONE** | replay 156→**302** drafts; 13/13 codes within ±1 main / ±3 sub |
 | SP-062d chemistry re-ingest + golden validate (Phase G) | **DONE** | stored **302** rows; `--validate` core PASS (13 / 150 / 302) |
+| Phase H — ship + docs UAT closeout | **DONE** | H-a: push `f111c60` + [PR #2](https://github.com/mohammedumar9919/studypilot-v2/pull/2); H-b: UAT ref + this file; Track B user UAT PASS |
 
-**Status:** **Phase B — fully closed** (012a–d + **012.5 polish**). **Phase C — Platform slices DONE** (013a–c, 045a/b, 004a). **Phase E — SP-060a–060e DONE** (product surface). **Phase F — SP-061a–061d + SP-062a–062c DONE** (chemistry parse). **Phase G — SP-062d DONE** (chemistry golden validate UAT: stored 302, core gate PASS). **DEFERRED:** SP-060f predictions, SP-014 observability, exam golden set, SP-041.
+**Status:** **Phase B — fully closed** (012a–d + **012.5 polish**). **Phase C — Platform slices DONE** (013a–c, 045a/b, 004a). **Phase E — SP-060a–060e DONE** (product surface). **Phase F — SP-061a–061d + SP-062a–062c DONE** (chemistry parse). **Phase G — SP-062d DONE** (chemistry golden validate: stored 302, core gate PASS). **Phase H — ship + docs DONE** (`f111c60`, PR #2; Track B UAT PASS). **DEFERRED:** SP-060f predictions, SP-014 observability, SP-063 extended unit/topic validate (advisory), exam golden set, SP-041.
 
 **Gate remediation (2026-06-19):** Full `quick_gate` FAIL was env/data, not a code regression. Root cause of OOC 8/10: `engineering chemistry updated.pdf` was wrongly ingested under `course_id=PPL`, so `ppl-ooc-04`/`ppl-ooc-06` retrieved chemistry pages instead of refusing. Fixed by pruning the mis-ingested doc from PPL (`apps/api/scripts/cleanup_ppl_corpus.py`); the `chemistry` course keeps its copy. pytest "too many clients"/deadlock was eval+pytest connection overlap. **Post-fix: OOC 10/10, 0/40 in-corpus refused, pytest 346 passed.**
 
@@ -80,6 +81,7 @@ This is the **single source of truth** for execution status. A new Cursor chat s
 | **E — Exam intelligence** | **DONE** (product surface) | SP-060a–060e **DONE**; **DEFER: SP-060f** predictions |
 | **F — Chemistry analytics** | **DONE** (code) | SP-061a–061d + **062a–062c DONE** |
 | **G — Chemistry golden UAT** | **DONE** | SP-062d: stored **302**; `exam_reference_report --validate` core PASS |
+| **H — Ship + docs** | **DONE** | H-a PR [#2](https://github.com/mohammedumar9919/studypilot-v2/pull/2) @ `f111c60`; H-b docs; Track B UAT PASS |
 
 ---
 
@@ -433,14 +435,28 @@ Retrieval untouched — no full eval for this closeout. Commit strategy: 3 logic
 
 ---
 
+## Phase H — Ship + docs closeout
+
+| Deliverable | Status |
+|-------------|--------|
+| H-a push `sp-003-lfs-ci-verify` @ `f111c60` | **DONE** |
+| H-a PR to `main` | **DONE** — [#2](https://github.com/mohammedumar9919/studypilot-v2/pull/2) |
+| Track B user UAT (hygiene, promote mapped, validate, UI vs golden) | **PASS** (assumed unless user reports otherwise) |
+| H-b `CHEMISTRY_UAT_REFERENCE.md` + this file | **DONE** |
+| Live chemistry baseline | **13** papers / **~150** mains / **302** rows / **tier 3** after mapped promote |
+
+**UAT reference:** [reports/CHEMISTRY_UAT_REFERENCE.md](reports/CHEMISTRY_UAT_REFERENCE.md)
+
+---
+
 ## What's NEXT
 
 | # | Priority | Item | Owner |
 |---|----------|------|-------|
-| 1 | **USER** | Optional: `derive_exam_concepts --course chemistry` if concepts stale | User terminal |
-| 2 | **LEAD** | Review extended validate FAIL (unit/topic) vs manual golden — advisory only | Lead |
-| 3 | **DEFER** | SP-060f predictions | — |
-| 4 | **DEFER** | SP-014 observability / RAGAS | — |
+| 1 | **LEAD** | Merge PR [#2](https://github.com/mohammedumar9919/studypilot-v2/pull/2) when CI green (user/lead) | Lead |
+| 2 | **DEFER** | SP-060f predictions | — |
+| 3 | **DEFER** | SP-014 observability / RAGAS | — |
+| 4 | **DEFER** | SP-063 extended unit/topic validate (advisory FAIL vs golden tagging) | — |
 | 5 | **DEFER** | Exam golden set (human approval) | — |
 
 ---

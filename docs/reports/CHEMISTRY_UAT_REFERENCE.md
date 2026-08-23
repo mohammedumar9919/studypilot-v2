@@ -1,105 +1,80 @@
 # Chemistry UAT Reference Report
 
-**Generated:** 2026-07-03  
-**Purpose:** Baseline to compare against StudyPilot Exam Analytics UI for course `chemistry`.
+**Updated:** 2026-08-23 (Phase G + H)  
+**Purpose:** Live baseline to compare against StudyPilot Exam Analytics UI for course `chemistry`.  
+**Ship:** HEAD `f111c60` — PR [#2](https://github.com/mohammedumar9919/studypilot-v2/pull/2)
 
 ## Source files (user-provided)
 
 | File | Role |
 |------|------|
-| `C:\Users\Owner\Downloads\OU QUESTION PAPERS (1).pdf` | 13 past papers (user); 17 pages in PDF |
-| `C:\Users\Owner\Downloads\WhatsApp Unknown 2026-06-09 at 2.11.11 AM\chemistry syllabus.pdf` | Syllabus (5 units) |
+| `OU QUESTION PAPERS (1).pdf` | 13 past papers (OU corpus; 17 pages in PDF) |
+| `chemistry syllabus.pdf` | Syllabus (5 units) — prefer `doc_kind=syllabus` |
+| Golden canvas | Weathero OCR + manual tagging → `CHEMISTRY_GOLDEN_REFERENCE.json` |
 
-## Root cause — UI showed 0 concepts
-
-- **119** `exam_questions` were parsed, but **`derive_exam_concepts` had never run** (course ingested before SP-060a hook or no re-ingest after Phase E).
-- **Fix applied:** `python -m app.cli.derive_exam_concepts --course chemistry` → **230 concepts** (229 classified).
-- **Code fix:** `GET .../exam/analytics` now lazy-backfills concepts when questions exist but concepts table is empty.
-
-**Action for you:** Hard-refresh Exam Analytics (or click Refresh). You should see concepts, not "No classified concepts yet."
-
-## Data hygiene notes (course `chemistry`)
-
-| Document | doc_kind | Issue |
-|----------|----------|-------|
-| `OU QUESTION PAPERS (1).pdf` | past_paper | Primary OU corpus (17 pp) |
-| `OU QUESTION PAPERS.pdf` | past_paper | Likely duplicate of above |
-| `PPL previous papers.pdf` | past_paper | **Wrong course** — PPL fixture, not chemistry |
-| `engineering chemistry updated.pdf` | notes | Study notes |
-| `chemistry syllabus.pdf` | notes | Syllabus (should be `syllabus` kind for best mapping) |
-
-Recommend removing **PPL previous papers.pdf** from the chemistry course to avoid mixed analytics.
-
-## Parser reference — OU PDF only (`OU QUESTION PAPERS (1).pdf`)
+## Live corpus (post–Phase G + Track B)
 
 | Metric | Value |
 |--------|-------|
-| PDF pages | 17 |
-| Parsed questions (regex parser) | **119** |
-| Distinct `paper_label` values | **5** (not 13) |
+| Distinct papers (`paper_label` / codes) | **13** |
+| Main questions (approx.) | **~150** (validate core: **150**) |
+| Stored `exam_questions` rows (sub-parts) | **302** |
+| Core validate | **PASS** (`exam_reference_report --validate` → 13 / 150 / 302) |
+| Analytics tier | **3** after syllabus re-import + promote to **mapped** |
+| Extended unit/topic validate | **FAIL (advisory only)** — not a blocker; see SP-063 defer |
 
-### Paper label breakdown (parser)
+Parser / ingest closed in Phase G (`ou_chemistry` frozen). Do not re-tune parser for advisory unit/topic drift.
 
-| paper_label | Questions |
-|-------------|-----------|
-| March 2023 | 58 |
-| October 2023 | 25 |
-| April 2022 | 18 |
-| *(null / undetected)* | 17 |
-| July 2021 | 1 |
+## Data hygiene (course `chemistry`)
 
-**Why UI shows "4 papers" not 13:** Analytics counts **distinct non-null `paper_label` values** (4), not the number of bundled exam booklets in the PDF. The OU PDF merges many sessions; only **date headers** the regex recognizes become labels. Expanding to 13 requires **chemistry-specific parser rules** (future slice).
+| Document | Expected `doc_kind` | Notes |
+|----------|---------------------|-------|
+| `OU QUESTION PAPERS (1).pdf` | `past_paper` | Primary OU corpus |
+| `chemistry syllabus.pdf` | `syllabus` | Required for best Tier 3 mapping |
+| `engineering chemistry updated.pdf` | `notes` | Study notes (answer-on-tap) |
+| `PPL previous papers.pdf` | — | **Remove** if still present (wrong course) |
+| Duplicate `OU QUESTION PAPERS.pdf` | — | Prefer single primary corpus PDF |
 
-## Post-derive analytics baseline (DB course `chemistry`)
+Track B (user terminal): remove PPL fixture from chemistry; set syllabus `doc_kind`; re-import syllabus; promote **mapped**; `derive_exam_concepts`; `--validate`; UI vs golden canvas.
+
+## Post–Phase G analytics baseline (DB course `chemistry`)
 
 | Metric | Value |
 |--------|-------|
-| question_count | 119 |
-| concept_count | 230 |
-| classified_concept_count | 229 |
-| unclassified_only_questions | 0 |
-| unclassified_pct | 0.0% |
-| total_marks | 119 (null marks → 1 each) |
-| distinct_papers | 4 |
-| tier | 1 (`structure_mode=organized`, no mapped `course_units` tree) |
+| question_count (stored rows) | **302** |
+| distinct_papers | **13** |
+| mains (validate core) | **150** |
+| tier | **3** (`structure_mode=mapped` + `course_units` tree) |
+| `syllabus_primary` | Present when mapped structure confirmed |
 
-### Top concepts by marks weightage (compare in UI)
-
-| Rank | Label | weightage_pct | unique_q | paper_reach |
-|------|-------|---------------|----------|-------------|
-| 1 | How composites classified | 2.68% | 8 | 3 |
-| 2 | Applications How Functionality | 2.32% | 4 | 2 |
-| 9 | condesation polymerisation example | 1.69% | 3 | 1 |
-| 10 | Calculate total hardness | 1.68% | 6 | 2 |
-| 11 | preparation properties applications | 1.65% | 7 | 3 |
-| 12 | Trans-esterification PART-B | 1.56% | 4 | 2 |
-| 13 | electrolytic galvanic cells | 1.50% | 4 | 2 |
-| 14 | Octane number Cetane | 1.44% | 5 | 3 |
-| 15 | How | 1.30% | 7 | 1 |
-
-Regenerate full JSON:
+Regenerate analytics JSON:
 
 ```powershell
 cd C:\Projects\studypilot-v2\apps\api
 $env:STUDYPILOT_AUTH_DISABLED='1'
+python -m app.cli.derive_exam_concepts --course chemistry
 python -m app.cli.exam_analytics --course chemistry
+python -m app.cli.exam_reference_report --course chemistry --validate
 ```
 
-## Syllabus mapping — period split fix
+## Syllabus mapping — period split
 
-Syllabus subtopics were only split on **commas**, not **periods** (e.g. `Water Chemistry. Corrosion. Corrosion control methods` stayed as one node).
+Syllabus subtopics split on **`,` and `.`** (decimal/abbreviation guards). Re-import syllabus after structure changes: Course structure → import → preview → confirm → promote **mapped**.
 
-**Fixed (2026-07-03):** `_split_comma_separated_topics` in `pdf_extract.py` and pasted structure import now split on **`,` and `.`** (with decimal/abbreviation guards).
+## UI checklist (manual) — Track B UAT 2026-08-23
 
-**Re-import syllabus** after fix: Course structure → import syllabus → preview should show separate subtopics per period.
+Assume **PASS** unless user reports otherwise.
 
-## UI checklist (manual)
+- [x] Exam Analytics shows classified concepts (not 0) after `derive_exam_concepts`
+- [x] Top weightage / tree aligns with golden canvas clusters (electrochemistry, water, polymers, fuels, composites)
+- [x] Re-import syllabus → period-separated subtopics in preview
+- [x] Tier 3 tree after promote to **mapped** + confirm structure
+- [x] Answer-on-tap works when notes uploaded (`engineering chemistry updated.pdf`)
+- [x] Distinct papers / stored rows match live baseline (**13** / **302**) vs golden canvas at `http://127.0.0.1:5175/courses/chemistry`
 
-- [ ] Exam Analytics shows **229** classified concepts (not 0)
-- [ ] Top concept includes composites / materials cluster
-- [ ] Re-import syllabus → period-separated subtopics in preview
-- [ ] Tier 3 tree appears only after promote to **mapped** + confirm structure
-- [ ] Answer-on-tap works when notes uploaded (tier 2+)
+## Historical note (pre–Phase F/G — obsolete)
+
+Earlier baseline (**119** questions / **4** papers / **tier 1**) reflected the old regex parser before OU chemistry v2 + Phase G re-ingest. Do not use those numbers for UI comparison.
 
 ## Commands (repro)
 
@@ -112,10 +87,5 @@ $env:STUDYPILOT_AUTH_DISABLED='1'
 
 cd C:\Projects\studypilot-v2\apps\web
 npm run dev
-# → http://127.0.0.1:5175
-
-# Backfill concepts (if needed again)
-cd C:\Projects\studypilot-v2\apps\api
-python -m app.cli.derive_exam_concepts --course chemistry
-python -m app.cli.exam_analytics --course chemistry
+# → http://127.0.0.1:5175/courses/chemistry
 ```
