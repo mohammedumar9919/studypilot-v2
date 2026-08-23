@@ -19,6 +19,7 @@ interface CourseMapTabPanelProps {
   heatmapSource: ExamHeatmapSource | undefined
   onSectionSelect: (sectionTitle: string) => void
   onSelectExamPreset: () => void
+  onConceptsLoaded?: (labels: string[]) => void
   onOutlineState?: (state: { loaded: boolean; notFound: boolean; hasData: boolean }) => void
   eligibility: CourseMapEligibilityResponse | null
   eligibilityLoading: boolean
@@ -42,6 +43,7 @@ export function CourseMapTabPanel({
   heatmapSource,
   onSectionSelect,
   onSelectExamPreset,
+  onConceptsLoaded,
   onOutlineState,
   eligibility,
   eligibilityLoading,
@@ -81,6 +83,7 @@ export function CourseMapTabPanel({
           queryPreset={queryPreset}
           heatmapSource={heatmapSource}
           onSelectExamPreset={onSelectExamPreset}
+          onConceptsLoaded={onConceptsLoaded}
         />
 
         {showPromoteSecondary && (

@@ -1,10 +1,12 @@
 # API & schema contracts (frozen)
 
-**Version:** 1.12.0  
+**Version:** 1.13.0  
 **Status:** Frozen for Phase 1 parallel work (Agent B ingest ∥ Agent C retrieval prep).  
 **Change process:** Orchestrator + human approval only. Bump version and notify all active agents.
 
-**1.12.0 (2026-07-01 — SP-060d):** Answer-on-tap `POST /api/v1/courses/{course_id}/exam/answer`. Body: exactly one of `{ concept_id }` OR `{ question_id, structure_node_id? }`. Study lane only (`preset=study` via `run_study_question`); never `past_paper` retrieval. Tier 1 empty when no ready study docs (`answers_available: false`, `status: no_study_docs`, no LLM). Marks-based LLM budget when `question_id`: ≥8 → `quality`/long, 4–7 → `balanced`/medium, else `budget`/short. Optional `structure_node_id` scopes retrieval via `expand_structure_scope_to_document_ids` → `source_ids`. Response includes grounded `answer`, `sources[]`, per-PDF `coverage` hit/miss. Gate refuse: `status: not_in_materials`, `answer: null`. Optional `llm_budget_tier` on `generate_study_answer` only (no `pipeline.py` changes).
+**1.13.0 (2026-07-04 — SP-061c):** Syllabus-primary analytics on `GET .../exam/analytics`. Query params `primary` (`auto` \| `syllabus` \| `concepts`, default `auto`) and `include_flat` (bool, default hides flat concepts when syllabus-primary resolves). When parser unit/section hints exist or course is Tier 3 eligible, response adds `syllabus_primary` block: `summary` (paper/main/subpart counts, years), `units[]`, `top_topics[]`, `top_subtopics[]`, `papers_table[]`, `year_unit_matrix`. With `primary=auto|syllabus` and `include_flat=false`, `concepts[]` empty and `pagination.flat_hidden: true`. Label v2 in concept derive: syllabus embed match ≥ **0.78**, noise filter, optional subtopic titles. CLI validate: `python -m app.cli.exam_reference_report --validate --course chemistry`.
+
+**1.12.0 (2026-07-01 — SP-060d):** Answer-on-tap `POST /api/v1/courses/{course_id}/exam/answer`. Body: exactly one of `{ concept_id }` OR `{ question_id, structure_node_id? }`. Study lane only (`preset=study` via `run_study_question`); never `past_paper` retrieval. Tier 1 empty when no ready study docs (`answers_available: false`, `status: no_study_docs`, no LLM). Marks-based LLM budget when `question_id`: ≥8 → `quality`/long, 4–7 → `balanced`/medium, else `budget`/short. Optional `structure_node_id` scopes retrieval via `expand_structure_scope_to_document_ids` → `source_ids`. Response includes grounded `answer`, `sources[]`, per-PDF `coverage` hit/miss. Gate refuse: `status: not_in_materials`, `answer: null`, optional `refusal_reason`, `top_rerank_score`. Concept tap uses linked `exam_questions.prompt_text` when available. Optional `llm_budget_tier` on `generate_study_answer` only (no `pipeline.py` changes).
 
 **1.11.0 (2026-07-01 — SP-060c):** Tier 3 structure extension on `GET .../exam/analytics`. Query param `include_structure` (`auto` \| `true` \| `false`, default `auto`). When `structure_mode == "mapped"` and `course_units` exist, response adds `tier: 3`, `structure.units[]` tree with per-node exam metrics (rollup subtopic → part → unit), and `unmapped_concepts[]` for syllabus-gap concepts. Auto-mapping: normalized substring match + FastEmbed cosine ≥ **0.75** (local only). Tier 1 flat `concepts[]` unchanged when structure absent or `include_structure=false`. No manual concept→node M2M in v1.
 
@@ -861,12 +863,16 @@ Read-only concept analytics from persisted `exam_concepts` data. **No query-time
 | `include_unclassified` | `false` | Include Unclassified bucket in `concepts[]` |
 | `min_questions` | `1` | Filter concepts below unique-question threshold |
 | `include_structure` | `auto` | `auto` \| `true` \| `false` — Tier 3 structure block (SP-060c) |
+| `primary` | `auto` | `auto` \| `syllabus` \| `concepts` — syllabus-primary vs flat concepts (SP-061c) |
+| `include_flat` | auto | When syllabus-primary active, default **false** hides `concepts[]`; set `true` to include emergent concepts |
 
-**Tier detection:** `tier: 1` when no parsed questions, no `course_units`, or `structure_mode != "mapped"`. `tier: 3` when `structure_mode == "mapped"`, units exist, and `include_structure` is `auto` or `true`.
+**Tier detection:** `tier: 1` when no parsed questions, no `course_units`, or `structure_mode != "mapped"`. `tier: 3` when `structure_mode == "mapped"`, units exist, and `include_structure` is `auto` or `true`. Syllabus-primary mode bumps tier to at least **2** when `syllabus_primary` block is attached.
 
 **Response (200, tier 1 ready):** `{ course_id, tier: 1, analytics_ready: true, summary, concepts[], pagination }`
 
 **Response (200, tier 3 ready):** tier 1 fields **plus** `structure: { structure_mode, units[] }` and `unmapped_concepts[]`.
+
+**Response (200, syllabus-primary ready, SP-061c):** tier 1/3 fields **plus** `syllabus_primary: { primary, summary, units[], top_topics[], top_subtopics[], papers_table[], year_unit_matrix }`. When `include_flat=false`, `concepts: []` and `pagination.flat_hidden: true`.
 
 **Per-node fields (tier 3):** `unit_id` / `part_id` / `subtopic_id`, `title`, `question_count`, `unique_question_count`, `marks_total`, `weightage_pct`, `count_pct`, `long_count`, `short_count`, `paper_reach`, `recurrence_rate`, `concept_count`, `mapped_concept_ids`, nested `parts[]` / `subtopics[]`. Zero-question nodes included.
 
@@ -900,6 +906,9 @@ def compute_exam_analytics(
     sort: str = "weightage_desc",
     include_unclassified: bool = False,
     min_questions: int = 1,
+    include_structure: str = "auto",
+    primary: str = "auto",
+    include_flat: bool | None = None,
 ) -> dict: ...
 ```
 
@@ -933,7 +942,7 @@ OR
 
 **Response (200, tier 1 — no study docs):** `tier: 1`, `answers_available: false`, `status: no_study_docs`, `answer: null`, no LLM.
 
-**Response (200, gate refuse):** `status: not_in_materials`, `answer: null`, `coverage` populated.
+**Response (200, gate refuse):** `status: not_in_materials`, `answer: null`, `coverage` populated, optional `refusal_reason`, `top_rerank_score`.
 
 **Response (400):** both/neither target; invalid UUID.
 

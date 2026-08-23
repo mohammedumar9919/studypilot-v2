@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_session
 from app.main import app
-from app.models import Document, ExamConcept, ExamQuestion
+from app.models import Document, ExamConcept, ExamQuestion, ExamQuestionConcept
 from app.services.exam.exam_answer import marks_to_budget
 from app.services.rag.pipeline import StudyQuestionResult
 from app.services.rag.retrieve import RetrievedChunk
@@ -254,3 +254,67 @@ def test_both_targets_rejected(db_session) -> None:
             json={"concept_id": str(concept.id), "question_id": str(question.id)},
         )
     assert response.status_code == 422
+
+
+@patch("app.services.exam.exam_answer.generate_study_answer", return_value="Grounded answer.")
+@patch("app.services.exam.exam_answer.run_study_question")
+def test_concept_tap_uses_linked_question_prompt(
+    mock_run: object,
+    mock_generate: object,
+    db_session,
+) -> None:
+    concept, question, notes_id, _ = _seed_answer_fixture(db_session)
+    db_session.add(
+        ExamQuestionConcept(
+            question_id=question.id,
+            concept_id=concept.id,
+            weight=1.0,
+        )
+    )
+    db_session.commit()
+
+    hit_chunk = RetrievedChunk(
+        chunk_id=uuid.uuid4(),
+        document_id=notes_id,
+        filename="notes.pdf",
+        doc_kind="notes",
+        page=1,
+        text="Precedence rules apply left-to-right.",
+        parent_text=None,
+        rerank_score=0.55,
+    )
+    mock_run.return_value = StudyQuestionResult(status="ok", chunks=[hit_chunk], rerank_scores=[0.55])
+
+    with _override_db(db_session):
+        response = client.post(
+            "/api/v1/courses/ANSR/exam/answer",
+            json={"concept_id": str(concept.id)},
+        )
+    assert response.status_code == 200
+    payload = response.json()
+    assert "Explain operator precedence in detail." in payload["query_text"]
+    assert payload["answer_length"] == "long"
+    assert mock_run.call_args.args[2] == payload["query_text"]
+
+
+@patch("app.services.exam.exam_answer.run_study_question")
+def test_gate_refusal_includes_debug_fields(mock_run: object, db_session) -> None:
+    concept, _, _, _ = _seed_answer_fixture(db_session)
+    mock_run.return_value = StudyQuestionResult(
+        status="not_in_materials",
+        chunks=[],
+        rerank_scores=[],
+        refusal_reason="below_threshold",
+        top_rerank_score=0.12,
+    )
+
+    with _override_db(db_session):
+        response = client.post(
+            "/api/v1/courses/ANSR/exam/answer",
+            json={"concept_id": str(concept.id)},
+        )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "not_in_materials"
+    assert payload["refusal_reason"] == "below_threshold"
+    assert payload["top_rerank_score"] == 0.12

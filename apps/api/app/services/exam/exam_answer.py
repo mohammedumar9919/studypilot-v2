@@ -5,9 +5,10 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Course, CoursePart, CourseSubtopic, CourseUnit, Document, ExamConcept, ExamQuestion
+from app.models import Course, CoursePart, CourseSubtopic, CourseUnit, Document, ExamConcept, ExamQuestion, ExamQuestionConcept
 from app.services.course_documents import list_course_documents
 from app.services.course_structure import expand_structure_scope_to_document_ids
 from app.services.exam.analytics_structure import is_tier3_eligible
@@ -134,6 +135,19 @@ def _base_payload(
     }
 
 
+def _best_prompt_for_concept(session: Session, concept_id: uuid.UUID) -> ExamQuestion | None:
+    linked = list(
+        session.scalars(
+            select(ExamQuestion)
+            .join(ExamQuestionConcept, ExamQuestionConcept.question_id == ExamQuestion.id)
+            .where(ExamQuestionConcept.concept_id == concept_id)
+        )
+    )
+    if not linked:
+        return None
+    return max(linked, key=lambda question: ((question.marks or 0), len(question.prompt_text)))
+
+
 def answer_exam_concept_or_question(
     session: Session,
     course_id: str,
@@ -175,7 +189,14 @@ def answer_exam_concept_or_question(
         concept = session.get(ExamConcept, concept_id)
         if concept is None or concept.course_id != course_id:
             return {"found": False, "course_id": course_id}
-        query_text = f'Explain "{concept.label}" for exam preparation based on course materials.'
+        linked_question = _best_prompt_for_concept(session, concept.id)
+        if linked_question is not None:
+            query_text = linked_question.prompt_text.strip()
+            if linked_question.marks is not None:
+                query_text = f"{query_text}\n\n(Exam question — {linked_question.marks} marks.)"
+            budget_tier, answer_length = marks_to_budget(linked_question.marks)
+        else:
+            query_text = f'Explain "{concept.label}" for exam preparation based on course materials.'
         target_type = "concept"
         target_id = str(concept.id)
     else:
@@ -217,6 +238,8 @@ def answer_exam_concept_or_question(
             status="not_in_materials",
             coverage=coverage,
         )
+        payload["refusal_reason"] = retrieval.refusal_reason
+        payload["top_rerank_score"] = retrieval.top_rerank_score
         payload["sources"] = chunks_to_sources(retrieval.chunks)
         return payload
 
@@ -239,4 +262,5 @@ def answer_exam_concept_or_question(
     )
     payload["answer"] = answer
     payload["sources"] = chunks_to_sources(retrieval.chunks)
+    payload["top_rerank_score"] = retrieval.top_rerank_score
     return payload

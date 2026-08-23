@@ -25,7 +25,6 @@ import { TocBrowser } from '../components/TocBrowser'
 import { useCourseStructure } from '../hooks/useCourseStructure'
 import { useStudyQuery } from '../hooks/useStudyQuery'
 import { useStudyTopics } from '../hooks/useStudyTopics'
-import { useExamAnalytics } from '../hooks/useExamAnalytics'
 import {
   formatCourseMapPromoteError,
   formatCourseMapRebuildError,
@@ -188,16 +187,12 @@ export function StudyWorkspacePage() {
     reload: reloadCourseMapEligibility,
   } = useCourseMapEligibility(activeCourseId, refreshToken, showFlexSidebar && sidebarViews.course_map)
 
-  const { data: examAnalyticsData } = useExamAnalytics(activeCourseId, refreshToken, {
-    enabled: heatmapAvailable === true,
-  })
+  const [examConceptLabels, setExamConceptLabels] = useState<string[]>([])
 
   const examTopicChips = useMemo(() => {
-    if (!examAnalyticsData?.concepts.length) return undefined
-    return examAnalyticsData.concepts
-      .slice(0, 2)
-      .map((concept) => `Explain ${concept.label} for exam preparation`)
-  }, [examAnalyticsData])
+    if (examConceptLabels.length === 0) return undefined
+    return examConceptLabels.map((label) => `Explain ${label} for exam preparation`)
+  }, [examConceptLabels])
 
   const { stage, elapsedMs, result, error, streamNotice, submit } = useStudyQuery()
   const loading = stage === 'retrieving' || stage === 'generating'
@@ -208,6 +203,7 @@ export function StudyWorkspacePage() {
     setSelectedSourceIds(new Set())
     setSelectedTopicIds(new Set())
     setStructureScope(EMPTY_STRUCTURE_SCOPE)
+    setExamConceptLabels([])
     prevLayoutSourceIdsRef.current = []
     prevStructureScopeRef.current = { unitIds: [], partIds: [], subtopicIds: [] }
   }, [activeCourseId])
@@ -716,6 +712,8 @@ export function StudyWorkspacePage() {
                 queryPreset={queryPreset}
                 heatmapSource={examStatus?.heatmap_source}
                 onSelectExamPreset={() => setQueryPreset('exam')}
+                onConceptsLoaded={setExamConceptLabels}
+                onSourcesChanged={() => setRefreshToken((token) => token + 1)}
               />
             )}
 
@@ -797,6 +795,7 @@ export function StudyWorkspacePage() {
                     rebuilding={rebuildingOutline}
                     rebuildError={rebuildOutlineError}
                     onRebuildOutline={handleRebuildOutline}
+                    onConceptsLoaded={setExamConceptLabels}
                   />
                 )}
               </div>

@@ -24,6 +24,8 @@ export type ExamAnswerResponse = {
   answer_length: 'short' | 'medium' | 'long'
   status: 'ok' | 'no_study_docs' | 'not_in_materials'
   answer: string | null
+  refusal_reason?: string | null
+  top_rerank_score?: number | null
   sources: ExamAnswerSource[]
   coverage: {
     documents: ExamAnswerCoverageDocument[]

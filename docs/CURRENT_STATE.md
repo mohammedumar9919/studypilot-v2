@@ -1,6 +1,6 @@
 # StudyPilot v2 — Current State
 
-**Last updated:** 2026-07-01  
+**Last updated:** 2026-08-22  
 **Status owner:** Lead orchestrator (update this file after every phase gate or major eval run)
 
 This is the **single source of truth** for execution status. A new Cursor chat should read this first, then [LEAD_ORCHESTRATOR.md](LEAD_ORCHESTRATOR.md) and [COUNCIL_ORCHESTRATION.md](COUNCIL_ORCHESTRATION.md).
@@ -55,8 +55,16 @@ This is the **single source of truth** for execution status. A new Cursor chat s
 | SP-060c exam analytics structure mapping (Phase E) | **DONE** | Tier 3 rollup on `GET .../exam/analytics`; pytest 6/6; api-contracts 1.11.0 |
 | SP-060d exam answer-on-tap (Phase E) | **DONE** | `POST .../exam/answer`; study lane only; drawer UI; api-contracts 1.12.0 |
 | SP-060e exam analytics tab (Phase E) | **DONE** | `ExamAnalyticsPanel`; universal `heatmap_available` gate; tier 1/3 + answer-on-tap |
+| SP-061a chemistry golden reference + validate CLI (Phase F) | **DONE** | `CHEMISTRY_GOLDEN_REFERENCE.json`; `exam_reference_report --validate`; pytest 6/6 |
+| SP-061b OU chemistry pyq_parser v2 (Phase F) | **DONE** | `ou_chemistry.py`; fixture tests 6/6; live re-ingest pending user terminal |
+| SP-061c syllabus-primary analytics API (Phase F) | **DONE** | `syllabus_primary` block; `primary`/`include_flat`; label v2; api-contracts 1.13.0; pytest 4/4 |
+| SP-061d tree-first analytics UI + answer fix (Phase F) | **DONE** | Syllabus panels + flat toggle; linked prompt; refusal debug; `npm run build` PASS |
+| SP-062a chemistry parse forensic audit CLI (Phase F) | **DONE** | `exam_parse_audit --course chemistry` → `docs/reports/CHEMISTRY_PARSE_AUDIT.md`; measure-only |
+| SP-062b chemistry parse code-assign + skip harvest (Phase F) | **DONE** | 13/13 codes; replay 100→156 drafts |
+| SP-062c chemistry parse sub-part expansion (Phase F) | **DONE** | replay 156→**302** drafts; 13/13 codes within ±1 main / ±3 sub |
+| SP-062d chemistry re-ingest + golden validate (Phase G) | **DONE** | stored **302** rows; `--validate` core PASS (13 / 150 / 302) |
 
-**Status:** **Phase B — fully closed** (012a–d + **012.5 polish**). **Phase C — Platform slices DONE** (013a–c, 045a/b, 004a). **Phase E — SP-060a–060e DONE** (product surface). **NEXT: SP-060f** (predictions, optional). **DEFERRED:** SP-014 observability, exam golden set, SP-041.
+**Status:** **Phase B — fully closed** (012a–d + **012.5 polish**). **Phase C — Platform slices DONE** (013a–c, 045a/b, 004a). **Phase E — SP-060a–060e DONE** (product surface). **Phase F — SP-061a–061d + SP-062a–062c DONE** (chemistry parse). **Phase G — SP-062d DONE** (chemistry golden validate UAT: stored 302, core gate PASS). **DEFERRED:** SP-060f predictions, SP-014 observability, exam golden set, SP-041.
 
 **Gate remediation (2026-06-19):** Full `quick_gate` FAIL was env/data, not a code regression. Root cause of OOC 8/10: `engineering chemistry updated.pdf` was wrongly ingested under `course_id=PPL`, so `ppl-ooc-04`/`ppl-ooc-06` retrieved chemistry pages instead of refusing. Fixed by pruning the mis-ingested doc from PPL (`apps/api/scripts/cleanup_ppl_corpus.py`); the `chemistry` course keeps its copy. pytest "too many clients"/deadlock was eval+pytest connection overlap. **Post-fix: OOC 10/10, 0/40 in-corpus refused, pytest 346 passed.**
 
@@ -70,6 +78,8 @@ This is the **single source of truth** for execution status. A new Cursor chat s
 | **B — Full product shell** | **DONE** | 012a–012d + **012.5** polish complete |
 | **C — Platform** | **DONE** (planned slices) | 013a–c, 045a/b, 004a complete; SP-014/041 deferred |
 | **E — Exam intelligence** | **DONE** (product surface) | SP-060a–060e **DONE**; **DEFER: SP-060f** predictions |
+| **F — Chemistry analytics** | **DONE** (code) | SP-061a–061d + **062a–062c DONE** |
+| **G — Chemistry golden UAT** | **DONE** | SP-062d: stored **302**; `exam_reference_report --validate` core PASS |
 
 ---
 
@@ -398,13 +408,40 @@ Retrieval untouched — no full eval for this closeout. Commit strategy: 3 logic
 
 ---
 
+## Phase F — Chemistry exam analytics (SP-061a / SP-061b / SP-061c / SP-061d)
+
+| Deliverable | Status |
+|-------------|--------|
+| SP-061a golden reference JSON + `exam_reference_report` CLI | **DONE** |
+| SP-061b OU chemistry `pyq_parser` v2 + fixture tests | **DONE** |
+| SP-061c syllabus-primary analytics + label v2 | **DONE** |
+| SP-061d tree-first `ExamAnalyticsPanel` + answer prompt fix | **DONE** |
+| `pytest test_exam_reference_report.py` | **6/6 PASS** |
+| `pytest test_pyq_parser_chemistry.py` | **6/6 PASS** |
+| `pytest test_exam_analytics_syllabus.py` | **4/4 PASS** |
+| `pytest test_exam_answer.py` | **9/9 PASS** |
+| `npm run build` (061d web) | **PASS** |
+| api-contracts **1.13.0** | **DONE** |
+| Live chemistry corpus validate (13 papers / 151 mains / 300 sub-parts) | **DONE (core)** — stored **302** rows; validate core PASS (13 / 150 / 302); extended unit/topic advisory FAIL |
+| SP-062a parse forensic audit CLI | **DONE** — `python -m app.cli.exam_parse_audit --course chemistry` |
+| SP-062b code-assign + skip harvest | **DONE** — papers_missing empty; skip papers harvested |
+| SP-062c sub-part expansion | **DONE** — replay **302** (290–310); every code ±1 main / ±3 sub; E-5616/N 19/19 |
+| `pytest test_exam_parse_audit.py test_pyq_parser_chemistry.py` (062c) | **21/21 PASS** |
+| SP-062d re-ingest + golden validate | **DONE** — `exam_reference_report --validate` core PASS; pytest **6/6** |
+
+**Council Stage 3:** Phase F + **Phase G (062d) closed** (2026-08-23). Stored chemistry `exam_questions` **302**; `exam_reference_report --validate --course chemistry` core PASS. Extended unit/topic checks remain advisory (manual golden tagging drift). No `retrieve.py`/`gate.py`/`rerank.py` changes.
+
+---
+
 ## What's NEXT
 
 | # | Priority | Item | Owner |
 |---|----------|------|-------|
-| 1 | **DEFER** | SP-060f predictions | — |
-| 2 | **DEFER** | SP-014 observability / RAGAS | — |
-| 3 | **DEFER** | Exam golden set (human approval) | — |
+| 1 | **USER** | Optional: `derive_exam_concepts --course chemistry` if concepts stale | User terminal |
+| 2 | **LEAD** | Review extended validate FAIL (unit/topic) vs manual golden — advisory only | Lead |
+| 3 | **DEFER** | SP-060f predictions | — |
+| 4 | **DEFER** | SP-014 observability / RAGAS | — |
+| 5 | **DEFER** | Exam golden set (human approval) | — |
 
 ---
 

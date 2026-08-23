@@ -1,7 +1,7 @@
 import uuid
 from typing import Any
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.orm import Session
 from starlette.responses import JSONResponse, StreamingResponse
@@ -23,7 +23,13 @@ from app.services.course_map import (
     promote_course_map,
     rebuild_course_map_outline,
 )
-from app.services.course_documents import get_course_documents, validate_source_ids
+from app.services.course_documents import (
+    delete_course_document,
+    get_course_documents,
+    list_past_paper_documents,
+    parse_document_id_list,
+    validate_source_ids,
+)
 from app.services.course_structure import (
     assign_part_documents,
     assign_subtopic_documents,
@@ -531,12 +537,22 @@ def exam_status(
 def exam_topic_frequency(
     course_id: str,
     detail: str | None = None,
+    document_ids: list[str] = Query(default=[]),
     session: Session = Depends(get_session),
     _course: Course = Depends(require_course_access_dep),
 ) -> dict:
     """Read-only PYQ topic/unit frequency (seed + keyword; no LLM)."""
     include_sections = detail == "sections"
-    result = compute_topic_frequency(session, course_id, include_section_detail=include_sections)
+    try:
+        parsed_ids = parse_document_id_list(document_ids or None)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    result = compute_topic_frequency(
+        session,
+        course_id,
+        include_section_detail=include_sections,
+        document_ids=parsed_ids,
+    )
     if not result.get("found"):
         raise HTTPException(status_code=404, detail=f"Course not found: {course_id}")
     return {key: value for key, value in result.items() if key != "found"}
@@ -551,11 +567,15 @@ def exam_analytics(
     include_unclassified: bool = False,
     min_questions: int = 1,
     include_structure: str = "auto",
+    primary: str = "auto",
+    include_flat: bool | None = None,
+    document_ids: list[str] = Query(default=[]),
     session: Session = Depends(get_session),
     _course: Course = Depends(require_course_access_dep),
 ) -> dict:
     """Read-only Tier 1/3 exam concept analytics (marks-weighted; no LLM)."""
     try:
+        parsed_ids = parse_document_id_list(document_ids or None)
         result = compute_exam_analytics(
             session,
             course_id,
@@ -565,6 +585,9 @@ def exam_analytics(
             include_unclassified=include_unclassified,
             min_questions=min_questions,
             include_structure=include_structure,
+            primary=primary,
+            include_flat=include_flat,
+            document_ids=parsed_ids,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -630,6 +653,50 @@ def course_documents(
     if result is None:
         raise HTTPException(status_code=404, detail=f"Course not found: {course_id}")
     return result
+
+
+@app.get("/api/v1/courses/{course_id}/exam/past-paper-sources")
+def exam_past_paper_sources(
+    course_id: str,
+    session: Session = Depends(get_session),
+    _course: Course = Depends(require_course_access_dep),
+) -> dict:
+    """Past-paper documents with parsed question counts for exam analytics UI."""
+    if session.get(Course, course_id) is None:
+        raise HTTPException(status_code=404, detail=f"Course not found: {course_id}")
+    return {
+        "course_id": course_id,
+        "sources": list_past_paper_documents(session, course_id),
+    }
+
+
+@app.delete("/api/v1/courses/{course_id}/documents/{document_id}")
+def delete_course_document_route(
+    course_id: str,
+    document_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    _course: Course = Depends(require_course_access_dep),
+) -> dict:
+    """Delete an ingested document and its indexed chunks / parsed exam questions."""
+    try:
+        result = delete_course_document(session, course_id, document_id)
+        if not result.get("found"):
+            raise HTTPException(status_code=404, detail="Document not found for course")
+        session.commit()
+    except HTTPException:
+        session.rollback()
+        raise
+    except Exception as exc:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Could not delete document: {exc}") from exc
+
+    return {
+        "deleted": True,
+        "course_id": course_id,
+        "document_id": str(document_id),
+        "filename": result.get("filename"),
+        "concepts_rebuild": result.get("concepts_rebuild", "deferred"),
+    }
 
 
 @app.get("/api/v1/courses/{course_id}/study-layout")

@@ -38,6 +38,16 @@ npm run dev
 
 Open http://127.0.0.1:5173/
 
+## Clerk production setup
+
+The app reads `VITE_CLERK_PUBLISHABLE_KEY` to decide whether to enable authentication:
+
+1. Copy the env template: `Copy-Item .env.example .env.local`
+2. Set `VITE_CLERK_PUBLISHABLE_KEY` in `.env.local` to your key from the [Clerk dashboard](https://dashboard.clerk.com/) (API Keys → Publishable key). This enables Clerk auth — protected routes require sign-in.
+3. Leaving `VITE_CLERK_PUBLISHABLE_KEY` blank keeps the **local dev bypass** active: the app runs unauthenticated and all routes are open. Use this for local development only.
+
+Other useful vars in `.env.example`: `VITE_API_PROXY_TARGET` (API proxy target) and `VITE_DEV_PORT` (dev server port, default **5175**).
+
 ## Build
 
 ```powershell

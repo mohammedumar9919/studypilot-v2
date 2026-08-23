@@ -100,3 +100,42 @@ def test_api_course_documents_404(db_session) -> None:
         assert response.status_code == 404
     finally:
         _clear_db_override()
+
+
+def test_delete_course_document_removes_past_paper(db_session) -> None:
+    from app.models import ExamQuestion
+
+    add_test_course(db_session, "DEL", "Delete Test")
+    doc_id = uuid.uuid4()
+    db_session.add(
+        Document(
+            id=doc_id,
+            course_id="DEL",
+            filename="papers.pdf",
+            doc_kind="past_paper",
+            status="ready",
+            page_count=2,
+        )
+    )
+    db_session.add(
+        ExamQuestion(
+            id=uuid.uuid4(),
+            document_id=doc_id,
+            course_id="DEL",
+            page=1,
+            prompt_text="Sample question",
+            extraction_method="regex",
+        )
+    )
+    db_session.commit()
+
+    _override_db(db_session)
+    try:
+        response = client.delete(f"/api/v1/courses/DEL/documents/{doc_id}")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["concepts_rebuild"] == "completed"
+        remaining = db_session.get(Document, doc_id)
+        assert remaining is None
+    finally:
+        _clear_db_override()

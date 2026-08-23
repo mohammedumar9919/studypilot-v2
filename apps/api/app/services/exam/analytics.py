@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import uuid
 from collections import defaultdict
 from typing import Any, Literal
 
@@ -11,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models import ExamConcept, ExamConceptAlias, ExamQuestion, ExamQuestionConcept
+from app.services.exam.concept_derive import derive_exam_concepts_for_course
 from app.services.exam.exam_status import compute_exam_status
 
 LONG_QUESTION_THRESHOLD_MARKS = 8
@@ -48,6 +50,107 @@ def _linear_slope(year_counts: dict[int, int]) -> float | None:
     return round(numerator / denominator, 4)
 
 
+def _questions_for_analytics(
+    session: Session,
+    course_id: str,
+    document_ids: list[uuid.UUID] | None,
+) -> list[ExamQuestion]:
+    questions = list(
+        session.scalars(select(ExamQuestion).where(ExamQuestion.course_id == course_id))
+    )
+    if document_ids:
+        allowed = set(document_ids)
+        questions = [question for question in questions if question.document_id in allowed]
+    return questions
+
+
+def _needs_concept_derivation(
+    session: Session,
+    course_id: str,
+    questions: list[ExamQuestion],
+    *,
+    primary: str,
+    include_flat: bool | None,
+    include_structure: str,
+) -> bool:
+    from app.services.exam.analytics_structure import is_tier3_eligible
+
+    if primary == "concepts":
+        return True
+    if include_flat is True:
+        return True
+
+    has_hints = any(question.unit or question.section_title for question in questions)
+    tier3 = is_tier3_eligible(session, course_id)
+    if primary == "auto" and not has_hints and not tier3:
+        return True
+    if include_structure == "true" and tier3:
+        return True
+    return False
+
+
+def _can_use_syllabus_fast_path(
+    session: Session,
+    course_id: str,
+    questions: list[ExamQuestion],
+    *,
+    primary: str,
+    include_flat: bool | None,
+    include_structure: str,
+) -> bool:
+    from app.services.exam.analytics_structure import is_tier3_eligible
+
+    if primary == "concepts" or include_flat is True or include_structure == "true":
+        return False
+
+    has_hints = any(question.unit or question.section_title for question in questions)
+    tier3 = is_tier3_eligible(session, course_id)
+    if primary == "syllabus":
+        return True
+    return primary == "auto" and (has_hints or tier3)
+
+
+def _syllabus_fast_path_response(
+    session: Session,
+    course_id: str,
+    questions: list[ExamQuestion],
+    *,
+    limit: int,
+    offset: int,
+    primary: str,
+) -> dict[str, Any]:
+    from app.services.exam.analytics_syllabus import apply_primary_analytics, build_syllabus_primary_analytics
+
+    syllabus_block = build_syllabus_primary_analytics(session, course_id, questions)
+    parsed_questions = len(questions)
+    distinct_papers = {question.paper_label for question in questions if question.paper_label}
+    payload = {
+        "found": True,
+        "course_id": course_id,
+        "tier": 2,
+        "analytics_ready": True,
+        "summary": {
+            "question_count": parsed_questions,
+            "concept_count": 0,
+            "classified_concept_count": 0,
+            "unclassified_only_questions": 0,
+            "unclassified_pct": 0.0,
+            "total_marks": sum(_question_marks(question) for question in questions),
+            "distinct_papers": len(distinct_papers),
+            "long_question_threshold_marks": LONG_QUESTION_THRESHOLD_MARKS,
+        },
+        "concepts": [],
+        "pagination": {"limit": limit, "offset": offset, "total": 0, "flat_hidden": True},
+    }
+    resolved_primary = "syllabus" if primary in {"auto", "syllabus"} else primary
+    return apply_primary_analytics(
+        payload,
+        primary=resolved_primary,
+        include_flat=False,
+        syllabus_block=syllabus_block,
+    )
+
+
 def _empty_response(course_id: str, *, status: dict[str, Any]) -> dict[str, Any]:
     return {
         "found": True,
@@ -79,6 +182,9 @@ def compute_exam_analytics(
     include_unclassified: bool = False,
     min_questions: int = 1,
     include_structure: str = "auto",
+    primary: str = "auto",
+    include_flat: bool | None = None,
+    document_ids: list[uuid.UUID] | None = None,
 ) -> dict[str, Any]:
     """Aggregate persisted exam concept analytics for a course."""
     status = compute_exam_status(session, course_id)
@@ -96,6 +202,45 @@ def compute_exam_analytics(
         payload = _empty_response(course_id, status=status)
         payload["pagination"] = {"limit": limit, "offset": offset, "total": 0}
         return payload
+
+    questions = _questions_for_analytics(session, course_id, document_ids)
+    if not questions:
+        payload = _empty_response(course_id, status=status)
+        payload["pagination"] = {"limit": limit, "offset": offset, "total": 0}
+        if document_ids:
+            payload["summary"]["question_count"] = 0
+        return payload
+
+    if _can_use_syllabus_fast_path(
+        session,
+        course_id,
+        questions,
+        primary=primary,
+        include_flat=include_flat,
+        include_structure=include_structure,
+    ):
+        return _syllabus_fast_path_response(
+            session,
+            course_id,
+            questions,
+            limit=limit,
+            offset=offset,
+            primary=primary,
+        )
+
+    existing_concepts = session.scalar(
+        select(ExamConcept.id).where(ExamConcept.course_id == course_id).limit(1)
+    )
+    if existing_concepts is None and _needs_concept_derivation(
+        session,
+        course_id,
+        questions,
+        primary=primary,
+        include_flat=include_flat,
+        include_structure=include_structure,
+    ):
+        derive_exam_concepts_for_course(session, course_id)
+        session.commit()
 
     concepts = list(
         session.scalars(
@@ -116,10 +261,12 @@ def compute_exam_analytics(
         )
     )
 
-    questions = list(
-        session.scalars(select(ExamQuestion).where(ExamQuestion.course_id == course_id))
-    )
+    if document_ids:
+        allowed_ids = {question.id for question in questions}
+        links = [link for link in links if link.question_id in allowed_ids]
     question_by_id = {question.id: question for question in questions}
+    parsed_questions = len(questions)
+
     total_marks = sum(_question_marks(question) for question in questions)
     distinct_papers = {
         question.paper_label
@@ -274,9 +421,10 @@ def compute_exam_analytics(
         "pagination": {"limit": limit, "offset": offset, "total": total},
     }
 
-    from app.services.exam.analytics_structure import maybe_attach_structure
+    from app.services.exam.analytics_structure import is_tier3_eligible, maybe_attach_structure
+    from app.services.exam.analytics_syllabus import apply_primary_analytics, build_syllabus_primary_analytics
 
-    return maybe_attach_structure(
+    payload = maybe_attach_structure(
         session,
         course_id,
         payload,
@@ -287,6 +435,31 @@ def compute_exam_analytics(
         parsed_questions=parsed_questions,
         total_marks=total_marks,
         distinct_paper_count=distinct_paper_count,
+    )
+
+    resolved_primary = primary
+    syllabus_block = None
+    if primary == "concepts":
+        resolved_primary = "concepts"
+    elif primary == "syllabus":
+        resolved_primary = "syllabus"
+        syllabus_block = build_syllabus_primary_analytics(session, course_id, questions)
+    else:
+        has_hints = any(question.unit or question.section_title for question in questions)
+        if is_tier3_eligible(session, course_id) or has_hints:
+            resolved_primary = "syllabus"
+            syllabus_block = build_syllabus_primary_analytics(session, course_id, questions)
+        else:
+            resolved_primary = "concepts"
+
+    flat_default = not (resolved_primary == "syllabus" and int(payload.get("tier") or 1) >= 2)
+    include_flat_resolved = include_flat if include_flat is not None else flat_default
+
+    return apply_primary_analytics(
+        payload,
+        primary=resolved_primary,
+        include_flat=include_flat_resolved,
+        syllabus_block=syllabus_block,
     )
 
 

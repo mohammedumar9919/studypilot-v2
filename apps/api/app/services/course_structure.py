@@ -21,11 +21,13 @@ from app.models import (
 )
 from app.services.course_documents import VISIBLE_STATUSES
 from app.services.course_outline import find_syllabus_document
+from app.services.pdf_extract import _split_comma_separated_topics
 from app.services.rag.retrieve import STUDY_DOC_KINDS
 
 
 def _split_comma_topics(line: str) -> list[str]:
-    return [item.strip() for item in line.split(",") if item.strip()]
+    """Split pasted syllabus subtopic lines on commas and sentence periods."""
+    return _split_comma_separated_topics(line)
 
 
 def _parse_unit_block(unit_title: str, body_lines: list[tuple[int, str]]) -> dict[str, Any]:

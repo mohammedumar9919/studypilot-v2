@@ -1,0 +1,136 @@
+{
+  "meta": {
+    "course": "BS 204 CH — Engineering Chemistry",
+    "institution": "Osmania University (OU), Faculty of Engineering",
+    "syllabus_period": "2020–2024",
+    "papers": 13,
+    "main_questions": 151,
+    "subparts": 300,
+    "years": [2021, 2022, 2023],
+    "old_format_papers": 6,
+    "new_format_papers": 7,
+    "source": "chemistry-past-papers-analytics.canvas.tsx (Weathero OCR + manual tagging)"
+  },
+  "units": [
+    {
+      "unit": "Unit I",
+      "label": "Unit I — Electrochemistry & Batteries",
+      "subpart_count": 103,
+      "subpart_pct": 34.3,
+      "main_pct": 25.2,
+      "topics": [
+        "Electrochemistry — cells, Nernst, electrodes (Calomel, Quinhydrone, Glass), pH",
+        "Battery Chemistry — Primary (Zn-C), Secondary (Pb-Acid, Li-Ion), Fuel cells"
+      ]
+    },
+    {
+      "unit": "Unit II",
+      "label": "Unit II — Water & Corrosion",
+      "subpart_count": 48,
+      "subpart_pct": 16.0,
+      "main_pct": 17.9,
+      "topics": [
+        "Water Chemistry — Hardness, EDTA, Alkalinity, Ion exchange, RO, Chlorination",
+        "Corrosion — Types, mechanism, pitting, waterline, factors",
+        "Corrosion Control — Cathodic protection, Galvanizing, Hot dipping"
+      ]
+    },
+    {
+      "unit": "Unit III",
+      "label": "Unit III — Engineering Materials",
+      "subpart_count": 50,
+      "subpart_pct": 16.7,
+      "main_pct": 18.5,
+      "topics": [
+        "Polymers — Basics, thermoplastic/thermoset, addition/condensation",
+        "Specific polymers — PVC, Bakelite, Nylon, Kevlar, Buna-S, rubbers",
+        "Conducting polymers — Polyacetylene; Biodegradable — PLA"
+      ]
+    },
+    {
+      "unit": "Unit IV",
+      "label": "Unit IV — Chemical Fuels",
+      "subpart_count": 56,
+      "subpart_pct": 18.7,
+      "main_pct": 21.2,
+      "topics": [
+        "Fuels — Classification, HCV/LCV, Dulong's, combustion calculations",
+        "Solid fuels — Coal ranking, proximate/ultimate analysis",
+        "Liquid fuels — Petroleum, cracking, octane/cetane; Gaseous — LPG, CNG"
+      ]
+    },
+    {
+      "unit": "Unit V",
+      "label": "Unit V — Green Chemistry & Composites",
+      "subpart_count": 43,
+      "subpart_pct": 14.3,
+      "main_pct": 17.2,
+      "topics": [
+        "Green Chemistry — Principles, atom economy, clean technology",
+        "Biodiesel — Sources, transesterification, carbon neutrality",
+        "Composites — Composition, classification, applications"
+      ]
+    }
+  ],
+  "top_topics": [
+    { "name": "Electrochemistry", "unit": "Unit I", "count": 72, "pct": 24.0 },
+    { "name": "Water Chemistry", "unit": "Unit II", "count": 34, "pct": 11.3 },
+    { "name": "Battery Chemistry", "unit": "Unit I", "count": 31, "pct": 10.3 },
+    { "name": "Specific Polymers", "unit": "Unit III", "count": 23, "pct": 7.7 },
+    { "name": "Fuels — General", "unit": "Unit IV", "count": 20, "pct": 6.7 },
+    { "name": "Liquid Fuels", "unit": "Unit IV", "count": 20, "pct": 6.7 },
+    { "name": "Green Chemistry", "unit": "Unit V", "count": 18, "pct": 6.0 },
+    { "name": "Composites", "unit": "Unit V", "count": 13, "pct": 4.3 },
+    { "name": "Solid Fuels (Coal)", "unit": "Unit IV", "count": 12, "pct": 4.0 },
+    { "name": "Biodiesel", "unit": "Unit V", "count": 12, "pct": 4.0 }
+  ],
+  "top_subtopics": [
+    { "name": "Green Chemistry Principles", "count": 16, "pct": 5.3 },
+    { "name": "Mixed Part-A (New format Q1)", "count": 14, "pct": 4.7 },
+    { "name": "Calorific Value (HCV/LCV/Dulong's)", "count": 12, "pct": 4.0 },
+    { "name": "Fuel Cells", "count": 11, "pct": 3.7 },
+    { "name": "Reference Electrodes (Calomel/Quinhydrone/Glass)", "count": 10, "pct": 3.3 },
+    { "name": "EDTA Hardness Method", "count": 10, "pct": 3.3 },
+    { "name": "Primary vs Secondary Batteries", "count": 9, "pct": 3.0 },
+    { "name": "Conducting Polymers (Polyacetylene)", "count": 9, "pct": 3.0 },
+    { "name": "Transesterification / Biodiesel", "count": 8, "pct": 2.7 },
+    { "name": "Composite Classification", "count": 8, "pct": 2.7 },
+    { "name": "Octane / Cetane Rating", "count": 7, "pct": 2.3 },
+    { "name": "Nernst Equation / EMF", "count": 7, "pct": 2.3 }
+  ],
+  "papers": [
+    { "session": "Sep/Oct 2023", "code": "E-5002/O/BL", "year": "2023", "format": "Old", "main": 17, "sub": 24 },
+    { "session": "Sep/Oct 2023", "code": "E-5616/N/BL", "year": "2023", "format": "New", "main": 7, "sub": 31 },
+    { "session": "Sep/Oct 2023", "code": "E-5014/O/BL", "year": "2023", "format": "Old", "main": 17, "sub": 24 },
+    { "session": "Sep/Oct 2023", "code": "E-5807/N/BL", "year": "2023", "format": "New", "main": 7, "sub": 31 },
+    { "session": "Feb/Mar 2023", "code": "E-5002/O", "year": "2023", "format": "Old", "main": 17, "sub": 23 },
+    { "session": "Feb/Mar 2023", "code": "E-5870/N", "year": "2023", "format": "New", "main": 7, "sub": 19 },
+    { "session": "Feb/Mar 2023", "code": "E-5014/O", "year": "2023", "format": "Old", "main": 17, "sub": 24 },
+    { "session": "Feb/Mar 2023", "code": "E-5616/N", "year": "2023", "format": "New", "main": 7, "sub": 19 },
+    { "session": "Mar/Apr 2022", "code": "D-2002/O", "year": "2022", "format": "Old", "main": 17, "sub": 24 },
+    { "session": "Sep/Oct 2022", "code": "D-2014/O/BL", "year": "2022", "format": "Old", "main": 17, "sub": 24 },
+    { "session": "Sep/Oct 2022", "code": "D-2337/N", "year": "2022", "format": "New", "main": 7, "sub": 19 },
+    { "session": "Mar/Apr 2022", "code": "D-2331/N", "year": "2022", "format": "New", "main": 7, "sub": 19 },
+    { "session": "July 2021", "code": "15164", "year": "2021", "format": "New", "main": 7, "sub": 19 }
+  ],
+  "year_unit_matrix": {
+    "2021": { "Unit I": 11, "Unit II": 2, "Unit III": 2, "Unit IV": 2, "Unit V": 2 },
+    "2022": { "Unit I": 28, "Unit II": 12, "Unit III": 16, "Unit IV": 18, "Unit V": 12 },
+    "2023": { "Unit I": 64, "Unit II": 34, "Unit III": 32, "Unit IV": 36, "Unit V": 29 }
+  },
+  "year_main_counts": {
+    "2021": 7,
+    "2022": 48,
+    "2023": 96
+  },
+  "tolerances": {
+    "paper_count_exact": true,
+    "main_questions_min": 145,
+    "main_questions_max": 155,
+    "subpart_count_min": 290,
+    "subpart_count_max": 310,
+    "unit_subpart_delta_max": 5,
+    "unit_subpart_pct_delta_pp": 2.0,
+    "top_topic_relative_pct": 15.0
+  }
+}

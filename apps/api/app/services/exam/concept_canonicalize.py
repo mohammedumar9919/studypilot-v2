@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 import numpy as np
@@ -11,6 +12,8 @@ from app.services.exam.concept_extract import ExtractedPhrase, normalize_phrase
 
 MERGE_COSINE_THRESHOLD = 0.82
 MIN_QUESTIONS_FOR_CLUSTERING = 5
+SYLLABUS_LABEL_THRESHOLD = 0.78
+_NOISE_ONLY = re.compile(r"^(how|what|applications|explain|define|discuss|describe)\b", re.IGNORECASE)
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,10 +32,47 @@ def _cosine_similarity(left: list[float], right: list[float]) -> float:
     return float(np.dot(a, b) / denom)
 
 
+def _is_noise_label(text: str) -> bool:
+    normalized = normalize_phrase(text)
+    tokens = normalized.split()
+    if len(tokens) <= 1:
+        return True
+    if _NOISE_ONLY.match(normalized) and len(tokens) <= 3:
+        return True
+    return False
+
+
+def _pick_cluster_label(
+    terms: list[ExtractedPhrase],
+    *,
+    subtopic_titles: list[str] | None = None,
+) -> str:
+    candidates = sorted(terms, key=lambda item: (-item.score, -len(item.normalized), item.normalized))
+    filtered = [item for item in candidates if not _is_noise_label(item.text)]
+    pool = filtered or candidates
+
+    if subtopic_titles:
+        title_vectors = embed_texts(subtopic_titles)
+        best_title: str | None = None
+        best_sim = -1.0
+        for phrase in pool[:5]:
+            phrase_vector = embed_texts([phrase.text])[0]
+            for title, title_vector in zip(subtopic_titles, title_vectors, strict=True):
+                sim = _cosine_similarity(phrase_vector, title_vector)
+                if sim > best_sim:
+                    best_sim = sim
+                    best_title = title
+        if best_title and best_sim >= SYLLABUS_LABEL_THRESHOLD:
+            return best_title
+
+    return pool[0].text
+
+
 def canonicalize_phrases(
     phrases: list[ExtractedPhrase],
     *,
     question_count: int,
+    subtopic_titles: list[str] | None = None,
 ) -> list[ConceptCluster]:
     """Merge near-duplicate phrases into canonical concept clusters."""
     if not phrases:
@@ -73,7 +113,7 @@ def canonicalize_phrases(
     result: list[ConceptCluster] = []
     for cluster in clusters:
         terms = sorted(cluster["terms"], key=lambda item: (-item.score, -len(item.normalized), item.normalized))
-        label = terms[0].text
+        label = _pick_cluster_label(terms, subtopic_titles=subtopic_titles)
         normalized_terms = tuple(dict.fromkeys(normalize_phrase(item.normalized) for item in terms))
         confidence = sum(item.score for item in terms) / len(terms)
         result.append(

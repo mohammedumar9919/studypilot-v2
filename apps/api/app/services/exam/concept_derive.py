@@ -8,6 +8,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.models import ExamConcept, ExamConceptAlias, ExamQuestion, ExamQuestionConcept
+from app.services.course_structure import get_course_structure
 from app.services.exam.concept_canonicalize import ConceptCluster, canonicalize_phrases
 from app.services.exam.concept_extract import ExtractedPhrase, extract_keyphrases, normalize_phrase
 
@@ -67,7 +68,23 @@ def derive_exam_concepts_for_course(session: Session, course_id: str) -> DeriveS
         extract_keyphrases(question.prompt_text) for question in questions
     ]
     all_phrases = [phrase for phrases in per_question_phrases for phrase in phrases]
-    clusters = canonicalize_phrases(all_phrases, question_count=len(questions))
+    subtopic_titles: list[str] = []
+    structure = get_course_structure(session, course_id)
+    if structure:
+        for unit in structure.get("units", []):
+            subtopic_titles.append(str(unit.get("title", "")))
+            for subtopic in unit.get("subtopics") or []:
+                subtopic_titles.append(str(subtopic.get("title", "")))
+            for part in unit.get("parts") or []:
+                subtopic_titles.append(str(part.get("title", "")))
+                for subtopic in part.get("subtopics") or []:
+                    subtopic_titles.append(str(subtopic.get("title", "")))
+    subtopic_titles = [title.strip() for title in subtopic_titles if title and title.strip()]
+    clusters = canonicalize_phrases(
+        all_phrases,
+        question_count=len(questions),
+        subtopic_titles=subtopic_titles or None,
+    )
 
     unclassified = ExamConcept(
         course_id=course_id,

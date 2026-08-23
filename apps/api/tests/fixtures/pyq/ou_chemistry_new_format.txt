@@ -1,0 +1,23 @@
+FACULTY OF ENGINEERING
+B.E. (BL) Degree Examination
+Code No. : E-5616/N/BL
+Subject : BS 204 CH — Engineering Chemistry
+Time: 3 hours                         Max. Marks: 70
+
+Note: First question is compulsory.
+
+1. a) Define electrochemical cell and electrode potential.
+   b) State Nernst equation and its applications.
+   c) Explain reference electrodes with examples.
+2. a) Explain EDTA method for hardness of water.
+   b) Discuss ion exchange process for softening of water.
+3. a) Explain conducting polymers with polyacetylene example.
+   b) Write differences between thermoplastic and thermoset polymers.
+4. a) Explain proximate and ultimate analysis of coal.
+   b) Define octane and cetane numbers.
+5. a) Explain principles of green chemistry.
+   b) Describe transesterification process for biodiesel.
+6. a) Explain composite materials and their classification.
+   b) Write applications of composites in engineering.
+7. a) Explain fuel cells and their working.
+   b) Compare primary and secondary batteries.

@@ -119,6 +119,12 @@ export function ExamAnswerDrawer({
         {!loading && result && result.answers_available && result.status === 'not_in_materials' && (
           <div className="exam-answer-drawer-empty" role="status">
             <p>Not found in your study materials.</p>
+            {result.refusal_reason && (
+              <p className="muted">
+                Gate: {result.refusal_reason.replace(/_/g, ' ')}
+                {result.top_rerank_score != null ? ` (top score ${result.top_rerank_score})` : ''}
+              </p>
+            )}
             <p className="muted">Try uploading more notes or broadening your course outline.</p>
           </div>
         )}

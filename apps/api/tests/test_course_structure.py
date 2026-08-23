@@ -126,6 +126,19 @@ Unit 2 Atoms
     assert "parts" not in units[1]
 
 
+def test_parse_pasted_structure_period_separated_subtopics() -> None:
+    text = """Unit 1 Electrochemistry
+  Water Chemistry. Corrosion. Corrosion control methods
+"""
+    units = parse_pasted_structure(text)
+    assert len(units) == 1
+    assert units[0]["subtopics"] == [
+        "Water Chemistry",
+        "Corrosion",
+        "Corrosion control methods",
+    ]
+
+
 def test_preview_units_from_parser_v2_parts_shape() -> None:
     raw_units = [
         {
