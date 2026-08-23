@@ -44,7 +44,8 @@ def build_syllabus_primary_analytics(
     course_id: str,
     questions: list[ExamQuestion],
 ) -> dict[str, Any]:
-    del session, course_id
+    del session
+    use_chemistry_taxonomy = course_id.strip().lower() == "chemistry"
     subpart_rows = [question for question in questions if is_subpart_row(question.question_number)]
     rows = subpart_rows if subpart_rows else list(questions)
 
@@ -59,9 +60,14 @@ def build_syllabus_primary_analytics(
     years: set[str] = set()
 
     for question in rows:
-        unit = _normalize_unit(question.unit) or "Unmapped"
-        topic = (question.section_title or unit or "Unclassified").strip()
-        subtopic = (question.section_title or topic).strip()
+        if use_chemistry_taxonomy:
+            from app.services.exam.chemistry_taxonomy import classify_chemistry_question
+
+            unit, topic, subtopic = classify_chemistry_question(question)
+        else:
+            unit = _normalize_unit(question.unit) or "Unmapped"
+            topic = (question.section_title or unit or "Unclassified").strip()
+            subtopic = (question.section_title or topic).strip()
         unit_subparts[unit] += 1
         topic_subparts[topic] += 1
         subtopic_subparts[subtopic] += 1

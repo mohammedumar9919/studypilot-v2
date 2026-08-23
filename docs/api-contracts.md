@@ -1,8 +1,10 @@
 # API & schema contracts (frozen)
 
-**Version:** 1.13.0  
+**Version:** 1.14.0  
 **Status:** Frozen for Phase 1 parallel work (Agent B ingest ∥ Agent C retrieval prep).  
 **Change process:** Orchestrator + human approval only. Bump version and notify all active agents.
+
+**1.14.0 (2026-08-23 — SP-060f-a):** No-LLM heuristic **predictions** block on `GET .../exam/analytics`. Successful / empty analytics responses include `predictions: { items[], formula_version, top_n }`. Concepts-only ranking (no syllabus/unit predictions yet). Formula **v1**: `score = 0.45 * norm(weightage_pct) + 0.35 * recurrence_rate + 0.20 * norm_trend(trend_slope)` where `norm(weightage_pct)` is max-normalized within the concept set and `norm_trend` is min–max over non-null slopes (null → 0). Default `top_n` **10**. Each item: `concept_id`, `label`, `score`, `rank`, `reasons[]` (`high_weightage`, `recurs_across_papers`, `rising_trend`). Empty concept set → `items: []`. Syllabus-primary fast path (no concept rows) returns empty prediction items. **No LLM / OpenRouter** on this path. CLI: `python -m app.cli.exam_analytics --course <id> [--summary-only]`.
 
 **1.13.0 (2026-07-04 — SP-061c):** Syllabus-primary analytics on `GET .../exam/analytics`. Query params `primary` (`auto` \| `syllabus` \| `concepts`, default `auto`) and `include_flat` (bool, default hides flat concepts when syllabus-primary resolves). When parser unit/section hints exist or course is Tier 3 eligible, response adds `syllabus_primary` block: `summary` (paper/main/subpart counts, years), `units[]`, `top_topics[]`, `top_subtopics[]`, `papers_table[]`, `year_unit_matrix`. With `primary=auto|syllabus` and `include_flat=false`, `concepts[]` empty and `pagination.flat_hidden: true`. Label v2 in concept derive: syllabus embed match ≥ **0.78**, noise filter, optional subtopic titles. CLI validate: `python -m app.cli.exam_reference_report --validate --course chemistry`.
 
@@ -849,7 +851,7 @@ python -m app.cli.derive_exam_concepts --course <course_id>
 
 **`DeriveStats` fields:** `course_id`, `question_count`, `concept_count`, `classified_concept_count`, `alias_count`, `linked_questions`, `unclassified_only_questions`, `unclassified_pct`.
 
-### `GET /api/v1/courses/{course_id}/exam/analytics` (SP-060b / SP-060c)
+### `GET /api/v1/courses/{course_id}/exam/analytics` (SP-060b / SP-060c / SP-060f-a)
 
 Read-only concept analytics from persisted `exam_concepts` data. **No query-time extraction, no LLM, no side effects.** Legacy `GET .../exam/topic-frequency` unchanged.
 
@@ -868,11 +870,13 @@ Read-only concept analytics from persisted `exam_concepts` data. **No query-time
 
 **Tier detection:** `tier: 1` when no parsed questions, no `course_units`, or `structure_mode != "mapped"`. `tier: 3` when `structure_mode == "mapped"`, units exist, and `include_structure` is `auto` or `true`. Syllabus-primary mode bumps tier to at least **2** when `syllabus_primary` block is attached.
 
-**Response (200, tier 1 ready):** `{ course_id, tier: 1, analytics_ready: true, summary, concepts[], pagination }`
+**Response (200, tier 1 ready):** `{ course_id, tier: 1, analytics_ready: true, summary, concepts[], pagination, predictions }`
 
 **Response (200, tier 3 ready):** tier 1 fields **plus** `structure: { structure_mode, units[] }` and `unmapped_concepts[]`.
 
-**Response (200, syllabus-primary ready, SP-061c):** tier 1/3 fields **plus** `syllabus_primary: { primary, summary, units[], top_topics[], top_subtopics[], papers_table[], year_unit_matrix }`. When `include_flat=false`, `concepts: []` and `pagination.flat_hidden: true`.
+**Response (200, syllabus-primary ready, SP-061c):** tier 1/3 fields **plus** `syllabus_primary: { primary, summary, units[], top_topics[], top_subtopics[], papers_table[], year_unit_matrix }`. When `include_flat=false`, `concepts: []` and `pagination.flat_hidden: true`. `predictions` still present (empty when no concept rows on syllabus fast path).
+
+**`predictions` (SP-060f-a):** `{ items: [{ concept_id, label, score, rank, reasons[] }], formula_version: "v1", top_n: 10 }`. Ranked from the same filtered concept set used for analytics (before pagination; respects `document_ids` / `min_questions` / `include_unclassified`). Heuristic only — **no LLM**.
 
 **Per-node fields (tier 3):** `unit_id` / `part_id` / `subtopic_id`, `title`, `question_count`, `unique_question_count`, `marks_total`, `weightage_pct`, `count_pct`, `long_count`, `short_count`, `paper_reach`, `recurrence_rate`, `concept_count`, `mapped_concept_ids`, nested `parts[]` / `subtopics[]`. Zero-question nodes included.
 
@@ -892,7 +896,7 @@ Read-only concept analytics from persisted `exam_concepts` data. **No query-time
 
 **Response (400):** invalid `sort`.
 
-**CLI:** `python -m app.cli.exam_analytics --course <course_id>`
+**CLI:** `python -m app.cli.exam_analytics --course <course_id> [--summary-only]`
 
 **Python entrypoint (analytics):**
 

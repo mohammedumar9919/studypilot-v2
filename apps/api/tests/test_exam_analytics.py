@@ -110,6 +110,8 @@ def test_analytics_empty_course_not_ready(db_session) -> None:
     assert result["analytics_ready"] is False
     assert result["concepts"] == []
     assert result["summary"]["question_count"] == 0
+    assert result["predictions"]["items"] == []
+    assert result["predictions"]["formula_version"] == "v1"
 
 
 def test_analytics_fixture_counts_weightage_and_multilabel(db_session) -> None:
@@ -133,6 +135,15 @@ def test_analytics_fixture_counts_weightage_and_multilabel(db_session) -> None:
     assert top["short_count"] == 1
     assert top["paper_reach"] == 2
     assert top["trend_slope"] is not None
+
+    predictions = result["predictions"]
+    assert predictions["formula_version"] == "v1"
+    assert predictions["top_n"] == 10
+    assert len(predictions["items"]) >= 1
+    assert predictions["items"][0]["label"] == "Operator Precedence"
+    assert predictions["items"][0]["rank"] == 1
+    assert "score" in predictions["items"][0]
+    assert isinstance(predictions["items"][0]["reasons"], list)
 
 
 def test_analytics_excludes_unclassified_by_default(db_session) -> None:
@@ -186,6 +197,9 @@ def test_analytics_api_route_returns_ready_payload(db_session) -> None:
     assert body["analytics_ready"] is True
     assert body["tier"] == 1
     assert len(body["concepts"]) >= 2
+    assert "predictions" in body
+    assert body["predictions"]["formula_version"] == "v1"
+    assert len(body["predictions"]["items"]) >= 1
 
 
 @pytest.mark.skip(reason="PPL corpus not loaded in isolated test DB")

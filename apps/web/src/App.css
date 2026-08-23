@@ -1199,6 +1199,31 @@
   margin: 0.5rem 0 0.75rem;
 }
 
+.exam-predictions-section {
+  margin: 0.75rem 0 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--sp-border-subtle, rgba(255, 255, 255, 0.08));
+}
+
+.exam-prediction-bar {
+  opacity: 0.92;
+}
+
+.exam-prediction-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.exam-prediction-reason {
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: var(--sp-surface-warm, rgba(255, 255, 255, 0.06));
+  font-size: 0.72rem;
+  color: var(--sp-text-muted, #9aa0a6);
+}
+
 .exam-analytics-refreshing {
   font-size: 0.8rem;
   white-space: nowrap;

@@ -21,7 +21,7 @@
 | Stored `exam_questions` rows (sub-parts) | **302** |
 | Core validate | **PASS** (`exam_reference_report --validate` → 13 / 150 / 302) |
 | Analytics tier | **3** after syllabus re-import + promote to **mapped** |
-| Extended unit/topic validate | **FAIL (advisory only)** — not a blocker; see SP-063 defer |
+| Extended unit/topic validate | **FAIL (advisory)** — SP-063b taxonomy tuning improved 3/5 units + 6/10 top topics; see table below |
 
 Parser / ingest closed in Phase G (`ou_chemistry` frozen). Do not re-tune parser for advisory unit/topic drift.
 
@@ -56,6 +56,31 @@ python -m app.cli.derive_exam_concepts --course chemistry
 python -m app.cli.exam_analytics --course chemistry
 python -m app.cli.exam_reference_report --course chemistry --validate
 ```
+
+## SP-063b taxonomy tuning (2026-08-23)
+
+Core validate **PASS** (13 / 150 / 302). Extended validate **FAIL** — improved vs pre-063b baseline.
+
+| Unit / topic | Golden | Live | Delta | ± tol | OK |
+|--------------|--------|------|-------|-------|-----|
+| Unit I | 103 | 92 | −11 | 5 | no |
+| Unit II | 48 | 54 | +6 | 5 | no |
+| Unit III | 50 | 53 | +3 | 5 | **yes** |
+| Unit IV | 56 | 58 | +2 | 5 | **yes** |
+| Unit V | 43 | 45 | +2 | 5 | **yes** |
+| Electrochemistry | 72 | 63 | −12.5% | 15% | **yes** |
+| Water Chemistry | 34 | 35 | +2.9% | 15% | **yes** |
+| Battery Chemistry | 31 | 29 | −6.5% | 15% | **yes** |
+| Green Chemistry | 18 | 18 | 0% | 15% | **yes** |
+| Fuels — General | 20 | 20 | 0% | 15% | **yes** |
+| Liquid Fuels | 20 | 19 | −5% | 15% | **yes** |
+| Specific Polymers | 23 | 31 | +34.8% | 15% | no |
+| Composites | 13 | 19 | +46.2% | 15% | no |
+| Solid Fuels (Coal) | 12 | 19 | +58.3% | 15% | no |
+| Biodiesel | 12 | 8 | −33.3% | 15% | no |
+| Mixed Part-A subtopic | 14 | 15 | +1 | — | close |
+
+**Root cause (remaining):** OU Part C mains 2–7 carry mixed syllabus content (e.g. Q4 polymer prompts on coal-coded main; Q2 electrochemistry on water-coded main). Golden tags by prompt content; positional unit lock vs content tagging remains ambiguous on ~6 composite-coded mains and polymer/generic keyword overlap.
 
 ## Syllabus mapping — period split
 

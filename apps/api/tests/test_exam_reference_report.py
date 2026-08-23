@@ -76,6 +76,7 @@ def test_validate_core_gate_ignores_extended_failures(db_session, monkeypatch) -
             "paper_label_count": 13,
             "paper_code_count": 13,
             "unit_subparts": {"Unit I": 0},
+            "topic_subparts": {"Electrochemistry": 0},
             "top_topics": [("Electrochemistry", 0)],
             "year_unit_matrix": {},
             "papers": [],

@@ -110,11 +110,20 @@ def collect_app_metrics(session: Session, course_id: str) -> dict[str, Any]:
     year_unit: dict[str, Counter[str]] = defaultdict(Counter)
 
     for question in subparts or questions:
-        unit = _normalize_unit(question.unit)
+        if course_id.strip().lower() == "chemistry":
+            from app.services.exam.chemistry_taxonomy import classify_chemistry_question
+
+            unit, topic, _subtopic = classify_chemistry_question(question)
+            unit = _normalize_unit(unit) or "Unmapped"
+            topic_label = topic.strip()
+        else:
+            unit = _normalize_unit(question.unit)
+            topic_label = (question.section_title or "").strip() if question.section_title else ""
+
         if unit:
             unit_subparts[unit] += 1
-        if question.section_title:
-            topic_subparts[question.section_title.strip()] += 1
+        if topic_label:
+            topic_subparts[topic_label] += 1
         year = _extract_year(question.paper_label)
         if year and unit:
             year_unit[year][unit] += 1
@@ -126,6 +135,7 @@ def collect_app_metrics(session: Session, course_id: str) -> dict[str, Any]:
         "paper_label_count": len(paper_labels),
         "paper_code_count": len(paper_codes),
         "unit_subparts": dict(unit_subparts),
+        "topic_subparts": dict(topic_subparts),
         "top_topics": topic_subparts.most_common(10),
         "year_unit_matrix": {year: dict(counts) for year, counts in year_unit.items()},
         "papers": sorted(paper_labels),
@@ -200,7 +210,7 @@ def validate_against_golden(
 
     golden_top = reference.get("top_topics", [])[:10]
     rel_tol = tolerances.get("top_topic_relative_pct", 15.0)
-    app_topic_map = dict(app["top_topics"])
+    app_topic_map = app.get("topic_subparts") or dict(app["top_topics"])
     for row in golden_top:
         actual = app_topic_map.get(row["name"], 0)
         add_check(
