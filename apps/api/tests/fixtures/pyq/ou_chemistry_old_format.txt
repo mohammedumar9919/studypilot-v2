@@ -1,0 +1,38 @@
+FACULTY OF ENGINEERING
+B.E. (BL) Degree Examination
+Code No. : E-5002/O/BL
+Subject : BS 204 CH — Engineering Chemistry
+September/October, 2023
+Time: 3 hours                         Max. Marks: 70
+
+PART-A
+Answer any five questions. (5x2 = 10 Marks)
+1. Define electrochemical cell.
+2. Explain Nernst equation.
+3. What is reference electrode?
+4. Define hardness of water.
+5. Explain EDTA method.
+6. What is corrosion?
+7. Define polymer.
+8. Explain calorific value.
+9. What is green chemistry?
+10. Define composite material.
+
+PART-B
+Answer any four questions. (4x15 = 60 Marks)
+11 a) Explain electrochemical series and its applications.
+    b) Discuss fuel cells in detail.
+12 a) Explain EDTA method for estimation of hardness.
+    b) Discuss reverse osmosis for water treatment.
+13 a) Explain conducting polymers.
+    b) Discuss thermoplastic and thermoset polymers.
+14 a) Explain proximate analysis of coal.
+    b) Discuss octane and cetane rating of fuels.
+15 a) Explain principles of green chemistry.
+    b) Describe biodiesel production by transesterification.
+16 a) Explain composite classification.
+    b) Write applications of composites.
+17 Write any two questions:
+    a) Explain Nernst equation / EMF
+    b) Fuel cells
+    c) Corrosion control methods

@@ -5,6 +5,7 @@ import type { TopicFrequencyResponse } from '../types'
 
 interface UseTopicFrequencyOptions {
   sectionDetail?: boolean
+  documentIds?: string[]
 }
 
 interface UseTopicFrequencyResult {
@@ -20,7 +21,7 @@ export function useTopicFrequency(
   refreshToken = 0,
   options: UseTopicFrequencyOptions = {},
 ): UseTopicFrequencyResult {
-  const { sectionDetail = false } = options
+  const { sectionDetail = false, documentIds } = options
   const [data, setData] = useState<TopicFrequencyResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -45,7 +46,7 @@ export function useTopicFrequency(
     setError(null)
     setNotFound(false)
 
-    void fetchTopicFrequency(trimmed, { sectionDetail, signal: controller.signal })
+    void fetchTopicFrequency(trimmed, { sectionDetail, documentIds, signal: controller.signal })
       .then((response) => {
         if (controller.signal.aborted) return
         setData(response)
@@ -65,7 +66,7 @@ export function useTopicFrequency(
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false)
       })
-  }, [courseId, refreshToken, sectionDetail])
+  }, [courseId, refreshToken, sectionDetail, documentIds])
 
   useEffect(() => {
     load()

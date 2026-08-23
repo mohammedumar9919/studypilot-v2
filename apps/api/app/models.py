@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -277,6 +277,70 @@ class ExamQuestion(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     document: Mapped["Document"] = relationship(back_populates="exam_questions")
+    concept_links: Mapped[list["ExamQuestionConcept"]] = relationship(
+        back_populates="question",
+        cascade="all, delete-orphan",
+    )
+
+
+class ExamConcept(Base):
+    __tablename__ = "exam_concepts"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    course_id: Mapped[str] = mapped_column(String(64), ForeignKey("courses.id", ondelete="CASCADE"), index=True)
+    label: Mapped[str] = mapped_column(String(512), nullable=False)
+    canonical_terms: Mapped[list] = mapped_column(JSONB, nullable=False, default=list, server_default="[]")
+    confidence: Mapped[float | None] = mapped_column(Float)
+    is_unclassified: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    aliases: Mapped[list["ExamConceptAlias"]] = relationship(
+        back_populates="concept",
+        cascade="all, delete-orphan",
+    )
+    question_links: Mapped[list["ExamQuestionConcept"]] = relationship(
+        back_populates="concept",
+        cascade="all, delete-orphan",
+    )
+
+
+class ExamConceptAlias(Base):
+    __tablename__ = "exam_concept_aliases"
+
+    course_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("courses.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    alias: Mapped[str] = mapped_column(String(512), primary_key=True)
+    concept_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("exam_concepts.id", ondelete="CASCADE"),
+        index=True,
+    )
+
+    concept: Mapped["ExamConcept"] = relationship(back_populates="aliases")
+
+
+class ExamQuestionConcept(Base):
+    __tablename__ = "exam_question_concepts"
+
+    question_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("exam_questions.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    concept_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("exam_concepts.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    weight: Mapped[float] = mapped_column(Float, nullable=False, default=1.0, server_default="1.0")
+
+    question: Mapped["ExamQuestion"] = relationship(back_populates="concept_links")
+    concept: Mapped["ExamConcept"] = relationship(back_populates="question_links")
 
 
 class ChunkParent(Base):
@@ -333,6 +397,16 @@ Index("idx_chunks_document_page", Chunk.document_id, Chunk.page)
 Index("idx_exam_questions_course_page", ExamQuestion.course_id, ExamQuestion.page)
 Index("idx_exam_questions_document_page", ExamQuestion.document_id, ExamQuestion.page)
 Index("idx_exam_questions_course_unit", ExamQuestion.course_id, ExamQuestion.unit)
+Index("idx_exam_concepts_course_id", ExamConcept.course_id)
+Index(
+    "idx_exam_concepts_one_unclassified_per_course",
+    ExamConcept.course_id,
+    unique=True,
+    postgresql_where=(ExamConcept.is_unclassified.is_(True)),
+)
+Index("idx_exam_concept_aliases_concept_id", ExamConceptAlias.concept_id)
+Index("idx_exam_question_concepts_question_id", ExamQuestionConcept.question_id)
+Index("idx_exam_question_concepts_concept_id", ExamQuestionConcept.concept_id)
 Index("idx_study_topics_course_sort", StudyTopic.course_id, StudyTopic.sort_order)
 Index("idx_course_units_course_sort", CourseUnit.course_id, CourseUnit.sort_order)
 Index("idx_course_subtopics_unit_sort", CourseSubtopic.unit_id, CourseSubtopic.sort_order)

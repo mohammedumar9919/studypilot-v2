@@ -13,10 +13,15 @@ export class TopicFrequencyApiError extends Error {
 
 export async function fetchTopicFrequency(
   courseId: string,
-  options?: { sectionDetail?: boolean; signal?: AbortSignal },
+  options?: { sectionDetail?: boolean; documentIds?: string[]; signal?: AbortSignal },
 ): Promise<TopicFrequencyResponse> {
   const encoded = encodeURIComponent(courseId.trim())
-  const query = options?.sectionDetail ? '?detail=sections' : ''
+  const params = new URLSearchParams()
+  if (options?.sectionDetail) params.set('detail', 'sections')
+  for (const documentId of options?.documentIds ?? []) {
+    params.append('document_ids', documentId)
+  }
+  const query = params.toString() ? `?${params.toString()}` : ''
   const response = await authFetch(`/api/v1/courses/${encoded}/exam/topic-frequency${query}`, {
     signal: options?.signal,
   })

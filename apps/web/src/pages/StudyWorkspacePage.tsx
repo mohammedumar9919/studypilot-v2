@@ -15,7 +15,7 @@ import { QueryForm } from '../components/QueryForm'
 import { SidebarViewTabs } from '../components/SidebarViewTabs'
 import { SourcesPanel } from '../components/SourcesPanel'
 import { TopicsPanel } from '../components/TopicsPanel'
-import { TopicFrequencyPanel } from '../components/TopicFrequencyPanel'
+import { ExamAnalyticsPanel } from '../components/ExamAnalyticsPanel'
 import { TrustBadges } from '../components/TrustBadges'
 import { useExamStatus } from '../hooks/useExamStatus'
 import { useCourseMapEligibility } from '../hooks/useCourseMapEligibility'
@@ -25,7 +25,6 @@ import { TocBrowser } from '../components/TocBrowser'
 import { useCourseStructure } from '../hooks/useCourseStructure'
 import { useStudyQuery } from '../hooks/useStudyQuery'
 import { useStudyTopics } from '../hooks/useStudyTopics'
-import { useTopicFrequency } from '../hooks/useTopicFrequency'
 import {
   formatCourseMapPromoteError,
   formatCourseMapRebuildError,
@@ -137,7 +136,7 @@ export function StudyWorkspacePage() {
     subtopicIds: [],
   })
 
-  const { examIndexReady, data: examStatus } = useExamStatus(activeCourseId, refreshToken)
+  const { examIndexReady, data: examStatus, heatmapAvailable } = useExamStatus(activeCourseId, refreshToken)
   const {
     data: studyLayout,
     loading: studyLayoutLoading,
@@ -188,13 +187,12 @@ export function StudyWorkspacePage() {
     reload: reloadCourseMapEligibility,
   } = useCourseMapEligibility(activeCourseId, refreshToken, showFlexSidebar && sidebarViews.course_map)
 
-  const { data: topicFrequencyData } = useTopicFrequency(activeCourseId, refreshToken)
+  const [examConceptLabels, setExamConceptLabels] = useState<string[]>([])
 
   const examTopicChips = useMemo(() => {
-    if (!topicFrequencyData?.units.length) return undefined
-    const sorted = [...topicFrequencyData.units].sort((a, b) => b.count - a.count)
-    return sorted.slice(0, 2).map((unit) => `Questions on ${unit.title} in past exam papers`)
-  }, [topicFrequencyData])
+    if (examConceptLabels.length === 0) return undefined
+    return examConceptLabels.map((label) => `Explain ${label} for exam preparation`)
+  }, [examConceptLabels])
 
   const { stage, elapsedMs, result, error, streamNotice, submit } = useStudyQuery()
   const loading = stage === 'retrieving' || stage === 'generating'
@@ -205,6 +203,7 @@ export function StudyWorkspacePage() {
     setSelectedSourceIds(new Set())
     setSelectedTopicIds(new Set())
     setStructureScope(EMPTY_STRUCTURE_SCOPE)
+    setExamConceptLabels([])
     prevLayoutSourceIdsRef.current = []
     prevStructureScopeRef.current = { unitIds: [], partIds: [], subtopicIds: [] }
   }, [activeCourseId])
@@ -697,23 +696,25 @@ export function StudyWorkspacePage() {
 
           <div className="column column-secondary">
             {isPplFixture && (
-              <>
-                <CourseOutlineSidebar
-                  courseId={activeCourseId}
-                  refreshToken={refreshToken}
-                  outlineConfirmToken={outlineConfirmToken}
-                  onSectionSelect={setQuestion}
-                  onOutlineState={handlePplOutlineState}
-                />
+              <CourseOutlineSidebar
+                courseId={activeCourseId}
+                refreshToken={refreshToken}
+                outlineConfirmToken={outlineConfirmToken}
+                onSectionSelect={setQuestion}
+                onOutlineState={handlePplOutlineState}
+              />
+            )}
 
-                <TopicFrequencyPanel
-                  courseId={activeCourseId}
-                  refreshToken={refreshToken}
-                  queryPreset={queryPreset}
-                  heatmapSource={examStatus?.heatmap_source}
-                  onSelectExamPreset={() => setQueryPreset('exam')}
-                />
-              </>
+            {heatmapAvailable && (
+              <ExamAnalyticsPanel
+                courseId={activeCourseId}
+                refreshToken={refreshToken}
+                queryPreset={queryPreset}
+                heatmapSource={examStatus?.heatmap_source}
+                onSelectExamPreset={() => setQueryPreset('exam')}
+                onConceptsLoaded={setExamConceptLabels}
+                onSourcesChanged={() => setRefreshToken((token) => token + 1)}
+              />
             )}
 
             {showFlexSidebar && (
@@ -794,6 +795,7 @@ export function StudyWorkspacePage() {
                     rebuilding={rebuildingOutline}
                     rebuildError={rebuildOutlineError}
                     onRebuildOutline={handleRebuildOutline}
+                    onConceptsLoaded={setExamConceptLabels}
                   />
                 )}
               </div>

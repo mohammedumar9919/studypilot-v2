@@ -13,6 +13,7 @@ from app.services.workspaces import get_or_create_system_demo_workspace
 from app.services.chunker.hierarchical import chunk_pages
 from app.services.course_outline import outline_path_for_course
 from app.services.embedder import embed_texts
+from app.services.exam.concept_derive import derive_exam_concepts_for_course
 from app.services.exam.pyq_parser import parse_exam_questions_from_pages
 from app.services.pdf_extract import (
     annotate_pages_with_outline,
@@ -407,6 +408,9 @@ def ingest_document(
                 pages=extraction.pages,
                 quality=quality,
             )
+            derive_stats = derive_exam_concepts_for_course(session, course_id)
+            quality["exam_concepts_derived"] = derive_stats.concept_count
+            quality["exam_concepts_unclassified_pct"] = derive_stats.unclassified_pct
 
         document.page_count = extraction.page_count
         document.file_path = str(file_path)

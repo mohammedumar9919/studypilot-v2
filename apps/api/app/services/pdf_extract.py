@@ -1988,8 +1988,20 @@ def _flat_syllabus_topics(merged_lines: list[str]) -> list[str]:
     return _engineering_syllabus_topic_titles(joined)
 
 
+def _should_split_topic_on_period(current: str, *, at_end: bool, next_char: str | None) -> bool:
+    """Split syllabus inline lists on period boundaries (e.g. 'A. B. C'), not decimals."""
+    topic = current.strip()
+    if not topic or len(topic) < 3:
+        return False
+    if topic[-1].isdigit():
+        return False
+    if at_end:
+        return True
+    return next_char == " " if next_char is not None else False
+
+
 def _split_comma_separated_topics(text: str) -> list[str]:
-    """Split comma-separated syllabus topics, ignoring commas inside parentheses."""
+    """Split comma- or period-separated syllabus topics, ignoring delimiters inside parentheses."""
     clean = re.sub(r"\s+", " ", text.strip())
     if not clean:
         return []
@@ -1997,21 +2009,34 @@ def _split_comma_separated_topics(text: str) -> list[str]:
     topics: list[str] = []
     current: list[str] = []
     depth = 0
-    for char in clean:
+    index = 0
+    while index < len(clean):
+        char = clean[index]
+        next_char = clean[index + 1] if index + 1 < len(clean) else None
         if char == "(":
             depth += 1
             current.append(char)
         elif char == ")":
             depth = max(0, depth - 1)
             current.append(char)
-        elif char == "," and depth == 0:
-            topic = "".join(current).strip(" ,;")
+        elif depth == 0 and char == ",":
+            topic = "".join(current).strip(" ,;.")
+            if topic:
+                topics.append(_cleanup_syllabus_topic(topic))
+            current = []
+        elif depth == 0 and char == "." and _should_split_topic_on_period(
+            "".join(current),
+            at_end=next_char is None,
+            next_char=next_char,
+        ):
+            topic = "".join(current).strip(" ,;.")
             if topic:
                 topics.append(_cleanup_syllabus_topic(topic))
             current = []
         else:
             current.append(char)
-    topic = "".join(current).strip(" ,;")
+        index += 1
+    topic = "".join(current).strip(" ,;.")
     if topic:
         topics.append(_cleanup_syllabus_topic(topic))
     return topics

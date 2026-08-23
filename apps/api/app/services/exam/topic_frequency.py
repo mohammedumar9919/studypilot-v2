@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import re
+import uuid
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
@@ -61,27 +62,34 @@ class _CountState:
         self.section_counts[key] = self.section_counts.get(key, 0) + amount
 
 
-def count_parsed_questions(session: Session, course_id: str) -> int:
-    return (
-        session.scalar(
-            select(func.count(ExamQuestion.id)).where(ExamQuestion.course_id == course_id)
-        )
-        or 0
-    )
+def count_parsed_questions(
+    session: Session,
+    course_id: str,
+    *,
+    document_ids: list[uuid.UUID] | None = None,
+) -> int:
+    stmt = select(func.count(ExamQuestion.id)).where(ExamQuestion.course_id == course_id)
+    if document_ids:
+        stmt = stmt.where(ExamQuestion.document_id.in_(document_ids))
+    return session.scalar(stmt) or 0
 
 
 def _count_from_exam_questions(
     session: Session,
     course_id: str,
     outline: DocumentOutline | None,
+    *,
+    document_ids: list[uuid.UUID] | None = None,
 ) -> _CountState | None:
     """Return unit/section counts from parsed exam_questions rows, or None when empty."""
-    if count_parsed_questions(session, course_id) == 0:
+    if count_parsed_questions(session, course_id, document_ids=document_ids) == 0:
         return None
 
     stmt = select(ExamQuestion.unit, ExamQuestion.section_title).where(
         ExamQuestion.course_id == course_id
     )
+    if document_ids:
+        stmt = stmt.where(ExamQuestion.document_id.in_(document_ids))
     state = _CountState()
     for unit, section_title in session.execute(stmt).all():
         unit_id = str(unit) if unit else _fallback_unit_id(outline)
@@ -421,6 +429,7 @@ def compute_topic_frequency(
     outline_path: Path | None = None,
     seed_path: Path | None = None,
     include_section_detail: bool = False,
+    document_ids: list[uuid.UUID] | None = None,
 ) -> dict[str, Any]:
     """Build topic frequency JSON for a course from past_paper chunks + seed or page counts."""
     course = session.get(Course, course_id)
@@ -433,7 +442,13 @@ def compute_topic_frequency(
         outline, _source = resolve_course_outline(session, course_id)
 
     documents = _fetch_past_paper_documents(session, course_id)
+    if document_ids:
+        allowed = set(document_ids)
+        documents = [document for document in documents if document.id in allowed]
     chunks = _fetch_past_paper_chunks(session, course_id)
+    if document_ids:
+        allowed_filenames = {document.filename for document in documents}
+        chunks = [row for row in chunks if row.filename in allowed_filenames]
     if not documents:
         return {
             "found": True,
@@ -444,7 +459,7 @@ def compute_topic_frequency(
             "source_documents": [],
         }
 
-    db_state = _count_from_exam_questions(session, course_id, outline)
+    db_state = _count_from_exam_questions(session, course_id, outline, document_ids=document_ids)
     if db_state is not None:
         total = sum(db_state.unit_counts.values())
         source_documents = _source_documents(chunks)

@@ -9,6 +9,17 @@ from dataclasses import dataclass
 from difflib import SequenceMatcher
 
 from app.services.exam.pyq_formats import detect_format, strip_watermarks
+from app.services.exam.ou_chemistry import (
+    expand_new_format_questions,
+    expand_old_format_questions,
+    harvest_numbered_questions,
+    is_ou_chemistry_source,
+    map_chemistry_unit_for_question,
+    map_chemistry_unit_section,
+    parse_part_a_subparts,
+    split_ou_bundle_text,
+    split_parts_loose,
+)
 from app.services.exam.topic_frequency import _READABLE_CHAR_THRESHOLD, _best_keyword_match, _build_keyword_patterns
 from app.services.pdf_extract import DocumentOutline, PageText
 
@@ -515,6 +526,228 @@ def _map_unit(
     return match[0], match[1]
 
 
+def _resolve_unit_section(
+    prompt: str,
+    *,
+    outline: DocumentOutline | None,
+    patterns: list[tuple[str, str, list[str]]] | None,
+    chemistry: bool,
+    part: str | None = None,
+    question_number: str | None = None,
+) -> tuple[str | None, str | None]:
+    if chemistry:
+        unit, section = map_chemistry_unit_for_question(
+            prompt,
+            part=part,
+            question_number=question_number,
+        )
+        if unit:
+            return unit, section
+    return _map_unit(prompt, outline, patterns)
+
+
+def _parse_part_ab_text_with_label(
+    text: str,
+    page: int,
+    paper_label: str | None,
+    *,
+    outline: DocumentOutline | None,
+    patterns: list[tuple[str, str, list[str]]] | None,
+    chemistry: bool,
+) -> list[ExamQuestionDraft]:
+    part_a_text, part_b_text = _split_parts(text)
+    if chemistry and (not part_a_text or not part_b_text):
+        loose_a, loose_b = split_parts_loose(text)
+        if loose_a or loose_b:
+            part_a_text, part_b_text = loose_a, loose_b
+    drafts: list[ExamQuestionDraft] = []
+
+    part_a_items = parse_part_a_subparts(part_a_text) if chemistry else []
+    if not part_a_items:
+        part_a_items = _parse_part_a(part_a_text)
+
+    for num, prompt in part_a_items:
+        unit, section = _resolve_unit_section(
+            prompt,
+            outline=outline,
+            patterns=patterns,
+            chemistry=chemistry,
+            part="A",
+            question_number=num,
+        )
+        drafts.append(
+            ExamQuestionDraft(
+                page=page,
+                paper_label=paper_label,
+                part="A",
+                question_number=num,
+                prompt_text=prompt,
+                unit=unit,
+                section_title=section,
+                confidence=1.0 if num.isdigit() or re.search(r"[a-g]$", num, re.I) else 0.85,
+            )
+        )
+
+    for num, prompt in _parse_part_b(part_b_text):
+        unit, section = _resolve_unit_section(
+            prompt,
+            outline=outline,
+            patterns=patterns,
+            chemistry=chemistry,
+            part="B",
+            question_number=num,
+        )
+        confidence = 0.9 if re.match(r"^1[1-7][a-c]?$", num, re.I) else 0.75
+        drafts.append(
+            ExamQuestionDraft(
+                page=page,
+                paper_label=paper_label,
+                part="B",
+                question_number=num,
+                prompt_text=prompt,
+                unit=unit,
+                section_title=section,
+                confidence=confidence,
+            )
+        )
+
+    return drafts
+
+
+def _parse_ou_chemistry_bundle(
+    pages: list[PageText],
+    *,
+    outline: DocumentOutline | None,
+    patterns: list[tuple[str, str, list[str]]] | None,
+) -> list[ExamQuestionDraft]:
+    readable = sorted(
+        [page for page in pages if page.char_count >= _READABLE_CHAR_THRESHOLD],
+        key=lambda page: page.page,
+    )
+    if not readable:
+        return []
+
+    merged_text = "\n\n".join(page.text for page in readable)
+    anchor_page = readable[0].page
+    drafts: list[ExamQuestionDraft] = []
+
+    for header, paper_text in _merge_chemistry_sections(split_ou_bundle_text(merged_text)):
+        drafts.extend(
+            _parse_ou_chemistry_section(
+                header=header,
+                paper_text=paper_text,
+                page=anchor_page,
+                outline=outline,
+                patterns=patterns,
+            )
+        )
+
+    return drafts
+
+
+def _merge_chemistry_sections(sections: list) -> list:
+    """Join continuation pages that share an assigned paper code (062c)."""
+    merged: list = []
+    for header, paper_text in sections:
+        if (
+            merged
+            and header.code
+            and merged[-1][0].code == header.code
+        ):
+            prev_header, prev_text = merged[-1]
+            merged[-1] = (prev_header, f"{prev_text}\n\n{paper_text}")
+        else:
+            merged.append((header, paper_text))
+    return merged
+
+
+def _chemistry_items_to_drafts(
+    items: list[tuple[str, str, str]],
+    *,
+    page: int,
+    paper_label: str | None,
+    confidence: float,
+) -> list[ExamQuestionDraft]:
+    drafts: list[ExamQuestionDraft] = []
+    for part, num, prompt in items:
+        unit, section = map_chemistry_unit_for_question(
+            prompt,
+            part=part,
+            question_number=num,
+        )
+        drafts.append(
+            ExamQuestionDraft(
+                page=page,
+                paper_label=paper_label,
+                part=part,
+                question_number=num,
+                prompt_text=prompt,
+                unit=unit,
+                section_title=section,
+                confidence=confidence,
+            )
+        )
+    return drafts
+
+
+def _parse_ou_chemistry_section(
+    *,
+    header,
+    paper_text: str,
+    page: int,
+    outline: DocumentOutline | None,
+    patterns: list[tuple[str, str, list[str]]] | None,
+) -> list[ExamQuestionDraft]:
+    """Parse one assigned OU paper. Never drop a located paper on detect_format=skip."""
+    paper_label = header.paper_label or _detect_paper_label(paper_text)
+    fmt = detect_format(paper_text)
+    was_skip = fmt == "skip"
+    prior = (header.paper_format or "").strip()
+    if was_skip:
+        fmt = "compulsory_q1" if prior == "New" else "part_ab"
+
+    confidence = 0.69 if was_skip else 0.9
+    drafts: list[ExamQuestionDraft] = []
+
+    if fmt == "compulsory_q1":
+        items = expand_new_format_questions(paper_text)
+        if len(items) < 8:
+            fallback = _parse_compulsory_page(paper_text)
+            if len(fallback) > len(items):
+                items = fallback
+        if len(items) < 2:
+            items = harvest_numbered_questions(paper_text, paper_format="New")
+        drafts = _chemistry_items_to_drafts(
+            items, page=page, paper_label=paper_label, confidence=confidence
+        )
+    elif fmt in {"part_ab", "continuation"}:
+        items = expand_old_format_questions(paper_text)
+        drafts = _chemistry_items_to_drafts(
+            items, page=page, paper_label=paper_label, confidence=confidence
+        )
+        if len(drafts) < 12:
+            legacy = _parse_part_ab_text_with_label(
+                paper_text,
+                page,
+                paper_label,
+                outline=outline,
+                patterns=patterns,
+                chemistry=True,
+            )
+            if len(legacy) > len(drafts):
+                drafts = legacy
+        if not drafts:
+            items = harvest_numbered_questions(paper_text, paper_format=prior or "Old")
+            drafts = _chemistry_items_to_drafts(
+                items, page=page, paper_label=paper_label, confidence=confidence
+            )
+
+    if was_skip:
+        for draft in drafts:
+            draft.confidence = min(draft.confidence, 0.69)
+    return drafts
+
+
 def _parse_part_ab_text(
     text: str,
     page: int,
@@ -626,8 +859,20 @@ def parse_exam_questions_from_pages(
     outline: DocumentOutline | None = None,
 ) -> list[ExamQuestionDraft]:
     """Parse structured exam questions from readable past_paper pages."""
-    del document_id, course_id, filename  # reserved for future multi-doc routing
+    del document_id  # reserved for future multi-doc routing
     patterns = _build_keyword_patterns(outline) if outline else None
+    sample_text = pages[0].text if pages else ""
+
+    if is_ou_chemistry_source(course_id=course_id, filename=filename, sample_text=sample_text):
+        ou_drafts = _parse_ou_chemistry_bundle(pages, outline=outline, patterns=patterns)
+        if ou_drafts:
+            logger.info(
+                "Parsed %d OU chemistry exam question(s) from bundled document %s",
+                len(ou_drafts),
+                filename,
+            )
+            return ou_drafts
+
     drafts: list[ExamQuestionDraft] = []
     pages_hit: set[int] = set()
 

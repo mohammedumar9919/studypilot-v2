@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 
+import { fetchPastPaperSources } from '../api/documentsClient'
 import { useTopicFrequency } from '../hooks/useTopicFrequency'
 import { isExamPreset } from '../constants/queryPresets'
 import type { ExamHeatmapSource, QueryPreset } from '../types'
@@ -30,10 +31,43 @@ export function TopicFrequencyPanel({
 }: TopicFrequencyPanelProps) {
   const [showSectionBreakdown, setShowSectionBreakdown] = useState(false)
   const [breakdownInitialized, setBreakdownInitialized] = useState(false)
+  const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([])
+  const [pastPaperSources, setPastPaperSources] = useState<
+    Awaited<ReturnType<typeof fetchPastPaperSources>>
+  >([])
+  const documentIds = selectedSourceIds.length > 0 ? selectedSourceIds : undefined
 
   const { data, loading, error, notFound, reload } = useTopicFrequency(courseId, refreshToken, {
     sectionDetail: showSectionBreakdown,
+    documentIds,
   })
+
+  const loadSources = useCallback(async () => {
+    try {
+      const rows = await fetchPastPaperSources(courseId)
+      setPastPaperSources(rows)
+      setSelectedSourceIds((current) => {
+        const valid = current.filter((id) => rows.some((row) => row.document_id === id))
+        return valid.length > 0 ? valid : rows.map((row) => row.document_id)
+      })
+    } catch {
+      setPastPaperSources([])
+    }
+  }, [courseId])
+
+  useEffect(() => {
+    void loadSources()
+  }, [loadSources, refreshToken])
+
+  const toggleSource = (documentId: string) => {
+    setSelectedSourceIds((current) => {
+      if (current.includes(documentId)) {
+        const next = current.filter((id) => id !== documentId)
+        return next.length > 0 ? next : current
+      }
+      return [...current, documentId]
+    })
+  }
 
   useEffect(() => {
     if (!data || breakdownInitialized) return
@@ -183,17 +217,44 @@ export function TopicFrequencyPanel({
             </>
           )}
 
-          {data.source_documents.length > 0 && (
+          {pastPaperSources.length > 0 && (
+            <section className="exam-past-paper-sources topic-frequency-sources-panel">
+              <h3 className="exam-analytics-section-title">Past-paper sources</h3>
+              <p className="muted exam-analytics-section-intro">
+                Choose which PDFs to include in exam predictions.
+              </p>
+              <ul className="exam-sources-list">
+                {pastPaperSources.map((source) => (
+                  <li key={source.document_id} className="exam-source-row">
+                    <label className="exam-source-select">
+                      <input
+                        type="checkbox"
+                        checked={selectedSourceIds.includes(source.document_id)}
+                        onChange={() => toggleSource(source.document_id)}
+                      />
+                      <span className="exam-source-name">{source.filename}</span>
+                      <span className="muted exam-source-meta">
+                        {source.parsed_question_count} parsed · {source.status}
+                      </span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {pastPaperSources.length > 0 && (
             <p className="topic-frequency-sources muted">
-              Sources:{' '}
-              {data.source_documents
-                .map((doc) => `${doc.filename} (${doc.readable_pages.length} readable pages)`)
+              Active sources:{' '}
+              {pastPaperSources
+                .filter((source) => selectedSourceIds.includes(source.document_id))
+                .map((source) => source.filename)
                 .join('; ')}
             </p>
           )}
 
           {!isExamPreset(queryPreset) &&
-            data.source_documents.length > 0 &&
+            pastPaperSources.length > 0 &&
             onSelectExamPreset && (
               <button type="button" className="text-btn exam-mode-link" onClick={onSelectExamPreset}>
                 Switch to Exam mode to practice past papers

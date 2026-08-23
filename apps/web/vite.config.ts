@@ -9,7 +9,8 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     server: {
-      port: 5173,
+      // Default 5175 — avoids collision with the Weathero project on :5173.
+      port: Number(env.VITE_DEV_PORT) || 5175,
       proxy: {
         '/api': {
           target: apiTarget,

@@ -1,0 +1,756 @@
+{
+  "meta": {
+    "past_paper": "C:\\Users\\Owner\\Downloads\\OU QUESTION PAPERS (1).pdf",
+    "syllabus": "C:\\Users\\Owner\\Downloads\\WhatsApp Unknown 2026-06-09 at 2.11.11 AM\\chemistry syllabus.pdf",
+    "pdf_pages": 17,
+    "parser_questions": 119,
+    "estimated_subquestion_markers": 0,
+    "numbered_question_lines": 48,
+    "paper_boundary_pages": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17
+    ],
+    "distinct_paper_labels": 5,
+    "user_estimate_papers": 13,
+    "user_estimate_questions": "130+"
+  },
+  "papers": {
+    "October 2023": 25,
+    "March 2023": 58,
+    "April 2022": 18,
+    "Unknown session": 17,
+    "July 2021": 1
+  },
+  "units": [
+    {
+      "unit": "UNIT I",
+      "title": "Electrochemistry",
+      "question_count": 24,
+      "topics": [
+        {
+          "topic": "Battery Chemistry",
+          "count": 6,
+          "sample_questions": [
+            {
+              "paper": "October 2023",
+              "part": "A",
+              "num": "2",
+              "prompt": "Explain alkaline battery over dry battery",
+              "page": 5
+            },
+            {
+              "paper": "March 2023",
+              "part": "B",
+              "num": "11b",
+              "prompt": "Explain the working of Lead-Acid battery with the relevant reactions",
+              "page": 8
+            },
+            {
+              "paper": "March 2023",
+              "part": "B",
+              "num": "14b",
+              "prompt": "Explain the catalytic cracking by moving bed method. 15. Explain the principles of Green Chemistry in detail. 46. Write ...",
+              "page": 8
+            }
+          ]
+        },
+        {
+          "topic": "Nernst equation",
+          "count": 4,
+          "sample_questions": [
+            {
+              "paper": "October 2023",
+              "part": "A",
+              "num": "41",
+              "prompt": "a) What are reference electrode its working. yk J b) Derive Nernst equation. Discuss its applications. ? Mustrate the co...",
+              "page": 5
+            },
+            {
+              "paper": "March 2023",
+              "part": "B",
+              "num": "11a",
+              "prompt": "Derive Nernst equation and explain its applications",
+              "page": 8
+            },
+            {
+              "paper": "March 2023",
+              "part": "B",
+              "num": "11b",
+              "prompt": "Derive Nernst Equation for electrode potential of a metal",
+              "page": 10
+            }
+          ]
+        },
+        {
+          "topic": "Electrolytic and Galvanic cells",
+          "count": 4,
+          "sample_questions": [
+            {
+              "paper": "October 2023",
+              "part": "A",
+              "num": "11",
+              "prompt": "a) Describe the construction of \u2018i oli electrode in detail with a neat diagram. (b) Explain the working of LeadeAtd st g...",
+              "page": 1
+            },
+            {
+              "paper": "October 2023",
+              "part": "A",
+              "num": "1",
+              "prompt": "Differentiate between galvanic cell and electrolytic cells",
+              "page": 5
+            },
+            {
+              "paper": "March 2023",
+              "part": "A",
+              "num": "1",
+              "prompt": "Distinguish between electrolytic and galvanic cells",
+              "page": 10
+            }
+          ]
+        },
+        {
+          "topic": "Types of electrodes",
+          "count": 3,
+          "sample_questions": [
+            {
+              "paper": "April 2022",
+              "part": "B",
+              "num": "12b",
+              "prompt": "What is principle involved in Cathodic protection? Discuss the two types of cathodic protection",
+              "page": 12
+            },
+            {
+              "paper": null,
+              "part": "A",
+              "num": "1",
+              "prompt": "Write the method of preparation of Buna-S rubber and mention its \u201c}wo Applications. How is Functionality defined and wha...",
+              "page": 13
+            },
+            {
+              "paper": null,
+              "part": "C",
+              "num": "6b",
+              "prompt": "Calculate the weight of Air required for combustion of 1 Kg of coal containing 75% of \u2018Carbon , 10% of Hydrogen, 3% of N...",
+              "page": 15
+            }
+          ]
+        },
+        {
+          "topic": "Oxygen fuel cells",
+          "count": 2,
+          "sample_questions": [
+            {
+              "paper": "March 2023",
+              "part": "B",
+              "num": "11a",
+              "prompt": "Explain the construction and working of Methanol \u2014 Oxygen fuel cell",
+              "page": 10
+            },
+            {
+              "paper": "April 2022",
+              "part": "A",
+              "num": "4",
+              "prompt": "Write anodic and cathodic reactions of methanol-oxygen cell",
+              "page": 12
+            }
+          ]
+        },
+        {
+          "topic": "Calomel Quinhydrone and Glass electrodes",
+          "count": 2,
+          "sample_questions": [
+            {
+              "paper": "March 2023",
+              "part": "C",
+              "num": "2a",
+              "prompt": "Describe the construction of calomel electrode in detail with a neat diagram",
+              "page": 11
+            },
+            {
+              "paper": "April 2022",
+              "part": "B",
+              "num": "11a",
+              "prompt": "Discuss the construction and working principle of Quinhydrone electrode",
+              "page": 12
+            }
+          ]
+        },
+        {
+          "topic": "Primary batteries Zn-Carbon",
+          "count": 2,
+          "sample_questions": [
+            {
+              "paper": "March 2023",
+              "part": "A",
+              "num": "6",
+              "prompt": "Differentiate between primary and secondary batteries",
+              "page": 8
+            },
+            {
+              "paper": null,
+              "part": "B",
+              "num": "14b",
+              "prompt": "Calculate the Gross and Net calorific values of a coal having the following composition Carbon = 80%, Hydrogen = 10%, Su...",
+              "page": 13
+            }
+          ]
+        },
+        {
+          "topic": "Thermodynamics of emf of cells",
+          "count": 1,
+          "sample_questions": [
+            {
+              "paper": null,
+              "part": "B",
+              "num": "11b",
+              "prompt": "Calculate EMF of the following \u00e9lectrochemical cell at 298K Zn(s) /Zn*2(0. ) Cut? (0. )/Cu(s) E* of Cu*2/Cu is 0:84 V Ve...",
+              "page": 13
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "unit": "UNIT II",
+      "title": "Water Chemistry",
+      "question_count": 22,
+      "topics": [
+        {
+          "topic": "Hardness of Water",
+          "count": 10,
+          "sample_questions": [
+            {
+              "paper": "October 2023",
+              "part": "A",
+              "num": "2",
+              "prompt": "Differentiate primary and secondary battery. e. Outline the sacrificial anodic protection of corrosion controlling metho...",
+              "page": 1
+            },
+            {
+              "paper": "October 2023",
+              "part": "A",
+              "num": "12",
+              "prompt": "a) How do you datemnine hewardness of water by EDTA method? 0.30gm of CaCOs was dissolved in HCI and solution made up of...",
+              "page": 1
+            },
+            {
+              "paper": "October 2023",
+              "part": "A",
+              "num": "42",
+              "prompt": "a) Explain the determination of hardness of water by EDTA method. b) 100mL of standard hard water containing 1mg of pure...",
+              "page": 5
+            }
+          ]
+        },
+        {
+          "topic": "Corrosion",
+          "count": 4,
+          "sample_questions": [
+            {
+              "paper": "March 2023",
+              "part": "B",
+              "num": "12b",
+              "prompt": "Explain the mechanism of wet corrosion in brief",
+              "page": 8
+            },
+            {
+              "paper": "March 2023",
+              "part": "A",
+              "num": "3",
+              "prompt": "Distinguish between chemical and electrochemical corrosion . Write structures of monomers of Kevlar",
+              "page": 10
+            },
+            {
+              "paper": "March 2023",
+              "part": "B",
+              "num": "12a",
+              "prompt": "Explain the mechanism of electrochemical corrosion of iron in contact with acid medium",
+              "page": 10
+            }
+          ]
+        },
+        {
+          "topic": "EDTA method",
+          "count": 3,
+          "sample_questions": [
+            {
+              "paper": "October 2023",
+              "part": "A",
+              "num": "14",
+              "prompt": "a) Explain the fractional distillation of petroleum. b) Define the term cracking. Explain the catalytic cracking by movi...",
+              "page": 5
+            },
+            {
+              "paper": "March 2023",
+              "part": "A",
+              "num": "7",
+              "prompt": "Explain Sacrificial anodic protection method",
+              "page": 8
+            },
+            {
+              "paper": "March 2023",
+              "part": "C",
+              "num": "7a",
+              "prompt": "Define the term Cracking. Explain Catalytic Cracking by moving bed method",
+              "page": 11
+            }
+          ]
+        },
+        {
+          "topic": "Break Point Chlorination",
+          "count": 2,
+          "sample_questions": [
+            {
+              "paper": "October 2023",
+              "part": "A",
+              "num": "3",
+              "prompt": "Write a short note on breakpoint of chlorination",
+              "page": 5
+            },
+            {
+              "paper": "March 2023",
+              "part": "B",
+              "num": "16b",
+              "prompt": "Write a note on break-point chlorination and its significance",
+              "page": 10
+            }
+          ]
+        },
+        {
+          "topic": "Alkalinity of water",
+          "count": 1,
+          "sample_questions": [
+            {
+              "paper": "July 2021",
+              "part": "C",
+              "num": "4a",
+              "prompt": "Define Alkalinity of water. PRpiain the estimation of alkalinity of water. (b) Explain the Hi of wet corrosion by (i) Ev...",
+              "page": 17
+            }
+          ]
+        },
+        {
+          "topic": "Reverse Osmosis",
+          "count": 1,
+          "sample_questions": [
+            {
+              "paper": "March 2023",
+              "part": "B",
+              "num": "12a",
+              "prompt": "Illustrate water softening process by Reverse Osmosis method",
+              "page": 8
+            }
+          ]
+        },
+        {
+          "topic": "Corrosion control Cathodic protection",
+          "count": 1,
+          "sample_questions": [
+            {
+              "paper": null,
+              "part": "B",
+              "num": "12a",
+              "prompt": "What is Cathodic protection and discuss the techniques available to carry it?",
+              "page": 13
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "unit": "UNIT III",
+      "title": "Engineering Materials - Polymers",
+      "question_count": 9,
+      "topics": [
+        {
+          "topic": "Polymers terminology",
+          "count": 3,
+          "sample_questions": [
+            {
+              "paper": "March 2023",
+              "part": "A",
+              "num": "4",
+              "prompt": "Differentiate between thermoplasts and thermoset polymers. Why gaseous fuels have more advantages than solid fuels?",
+              "page": 10
+            },
+            {
+              "paper": "March 2023",
+              "part": "C",
+              "num": "4b",
+              "prompt": "Define conducting polymers. Explain the mechanism of polyacetylene",
+              "page": 11
+            },
+            {
+              "paper": "April 2022",
+              "part": "A",
+              "num": "6",
+              "prompt": "What are conducting polymers? Give the structure of Pe",
+              "page": 12
+            }
+          ]
+        },
+        {
+          "topic": "Classification Thermoplastics Thermosetting",
+          "count": 3,
+          "sample_questions": [
+            {
+              "paper": "October 2023",
+              "part": "A",
+              "num": "6",
+              "prompt": "What is thermosetting polymer? Give examples",
+              "page": 1
+            },
+            {
+              "paper": "April 2022",
+              "part": "B",
+              "num": "13a",
+              "prompt": "Define and differentiate Thermoplastic and thermosetting plastics?",
+              "page": 12
+            },
+            {
+              "paper": null,
+              "part": "B",
+              "num": "13b",
+              "prompt": "Write the differences between Thermoplastic and Thermosetting plastics",
+              "page": 13
+            }
+          ]
+        },
+        {
+          "topic": "Addition Condensation Co-Polymerization",
+          "count": 1,
+          "sample_questions": [
+            {
+              "paper": "October 2023",
+              "part": "A",
+              "num": "3",
+              "prompt": "Define addition reaction. Give an example. \\ ae 5",
+              "page": 1
+            }
+          ]
+        },
+        {
+          "topic": "Conducting polymers Poly-acetylene",
+          "count": 1,
+          "sample_questions": [
+            {
+              "paper": null,
+              "part": "C",
+              "num": "6b",
+              "prompt": "Explain the classification of conducting polymers and write the mechanism of conduction in poly-acetylene",
+              "page": 15
+            }
+          ]
+        },
+        {
+          "topic": "Biodegradable polymers polylactic acid",
+          "count": 1,
+          "sample_questions": [
+            {
+              "paper": "October 2023",
+              "part": "A",
+              "num": "6",
+              "prompt": "What is a biodegradable polymer? Give an example",
+              "page": 5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "unit": "UNIT IV",
+      "title": "Chemical Fuels",
+      "question_count": 22,
+      "topics": [
+        {
+          "topic": "Coal Proximate Ultimate analysis",
+          "count": 5,
+          "sample_questions": [
+            {
+              "paper": "October 2023",
+              "part": "A",
+              "num": "13",
+              "prompt": "a) What are conducting polymers? Explain the mechanism of conduction in polyacetylene. (b) Write the preparation propert...",
+              "page": 1
+            },
+            {
+              "paper": "March 2023",
+              "part": "B",
+              "num": "14a",
+              "prompt": "How is proximate analysis of a coal determined? Give its significance",
+              "page": 10
+            },
+            {
+              "paper": "March 2023",
+              "part": "C",
+              "num": "5b",
+              "prompt": "Explain the proximate analysis of coal and its importance",
+              "page": 11
+            }
+          ]
+        },
+        {
+          "topic": "Catalytic cracking Knocking Octane Cetane numbers",
+          "count": 5,
+          "sample_questions": [
+            {
+              "paper": "October 2023",
+              "part": "A",
+              "num": "8",
+              "prompt": "Define octane and cetane numbers. % %",
+              "page": 5
+            },
+            {
+              "paper": "March 2023",
+              "part": "B",
+              "num": "17a",
+              "prompt": "Describe the moving bed method of catalytic cracking with a neat diagram. - (b) Write a note on octane number and cetane...",
+              "page": 10
+            },
+            {
+              "paper": "April 2022",
+              "part": "B",
+              "num": "14a",
+              "prompt": "What are Octane number and Cetane numbers? Explain how the molecular structure of constituents of gasoline affect the oc...",
+              "page": 12
+            }
+          ]
+        },
+        {
+          "topic": "Classification of fuels",
+          "count": 4,
+          "sample_questions": [
+            {
+              "paper": "October 2023",
+              "part": "A",
+              "num": "7",
+              "prompt": "Write the classification of fuels. a 8. g . Define HCV and LCV. \\) . Write few applications of composites. \u2014",
+              "page": 1
+            },
+            {
+              "paper": "October 2023",
+              "part": "A",
+              "num": "15",
+              "prompt": "a) Explain the concept and principles of green chemistry. b) Explain the classification of composite materials based on ...",
+              "page": 5
+            },
+            {
+              "paper": "April 2022",
+              "part": "B",
+              "num": "15a",
+              "prompt": "What are composites? Describe the classification and advantages of composite materials",
+              "page": 12
+            }
+          ]
+        },
+        {
+          "topic": "Calorific Value HCV LCV Dulong formula",
+          "count": 4,
+          "sample_questions": [
+            {
+              "paper": "March 2023",
+              "part": "B",
+              "num": "14a",
+              "prompt": "Show the Dulong\u2019s formula for the calculation of Calorific value of a fuel and explain the terms involved in it",
+              "page": 8
+            },
+            {
+              "paper": "March 2023",
+              "part": "B",
+              "num": "14b",
+              "prompt": "Calculate the Gross and Net calorific value of coal sample having the following composition by Dulong's formula: C=90%, ...",
+              "page": 10
+            },
+            {
+              "paper": "March 2023",
+              "part": "C",
+              "num": "1f",
+              "prompt": "How do you calculate the calorific value of fuel by Dulong s Formula?",
+              "page": 11
+            }
+          ]
+        },
+        {
+          "topic": "LPG CNG",
+          "count": 3,
+          "sample_questions": [
+            {
+              "paper": "October 2023",
+              "part": "A",
+              "num": "7",
+              "prompt": "What are CNG and LPG? Give their compositions. _",
+              "page": 5
+            },
+            {
+              "paper": "March 2023",
+              "part": "A",
+              "num": "4",
+              "prompt": "Mention the composition of LPG",
+              "page": 8
+            },
+            {
+              "paper": "April 2022",
+              "part": "A",
+              "num": "7",
+              "prompt": "Define CNG and give its uses",
+              "page": 12
+            }
+          ]
+        },
+        {
+          "topic": "Combustion calculations",
+          "count": 1,
+          "sample_questions": [
+            {
+              "paper": "March 2023",
+              "part": "C",
+              "num": "5a",
+              "prompt": "Asample of coal was found to have the following percentage composition: C=75% H=5.2% O=12.1% N=3.2% and ash=4.5% Calcula...",
+              "page": 11
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "unit": "UNIT V",
+      "title": "Green Chemistry and Composites",
+      "question_count": 17,
+      "topics": [
+        {
+          "topic": "Applications of composites",
+          "count": 13,
+          "sample_questions": [
+            {
+              "paper": "October 2023",
+              "part": "A",
+              "num": "15",
+              "prompt": "a) What are the sources of a bio-diesel? Explain the concept of transesterification. (b) (i) Explain the composition and...",
+              "page": 1
+            },
+            {
+              "paper": "October 2023",
+              "part": "A",
+              "num": "13",
+              "prompt": "a) Write preparation, properties and applications of (i) Bakelite (ii) Buna-S b) Classify and explain the applications o...",
+              "page": 5
+            },
+            {
+              "paper": "March 2023",
+              "part": "B",
+              "num": "13b",
+              "prompt": "Discuss the applications of poly lactic acid",
+              "page": 8
+            }
+          ]
+        },
+        {
+          "topic": "Biodiesel Transesterification",
+          "count": 3,
+          "sample_questions": [
+            {
+              "paper": "October 2023",
+              "part": "A",
+              "num": "40",
+              "prompt": "What is transesterification? Explain its significance, ~\\PART-B",
+              "page": 5
+            },
+            {
+              "paper": "March 2023",
+              "part": "A",
+              "num": "5",
+              "prompt": "Write the sources of Biodiesel",
+              "page": 8
+            },
+            {
+              "paper": "March 2023",
+              "part": "A",
+              "num": "5",
+              "prompt": "Distinguish between HCV and LCV - Mention any three sources and uses of biodiesel",
+              "page": 10
+            }
+          ]
+        },
+        {
+          "topic": "Green Chemistry principles Atom Economy Catalysis",
+          "count": 1,
+          "sample_questions": [
+            {
+              "paper": "October 2023",
+              "part": "A",
+              "num": "0",
+              "prompt": "What is atom economy? Explain giving a reaction as an example. PART=B stora",
+              "page": 1
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "unmapped_count": 25,
+  "unmapped_samples": [
+    {
+      "prompt": "Write the cell reaction of the following cell notation: Ag/Ag* || H */Hz /Pt",
+      "paper": "October 2023",
+      "part": "A",
+      "num": "1"
+    },
+    {
+      "prompt": "Explain pilling bed-worth rule",
+      "paper": "October 2023",
+      "part": "A",
+      "num": "4"
+    },
+    {
+      "prompt": "Define condesation polymerisation. Give an example",
+      "paper": "October 2023",
+      "part": "A",
+      "num": "5"
+    },
+    {
+      "prompt": "What are the constituents of composite materials? Explain their roles",
+      "paper": "October 2023",
+      "part": "A",
+      "num": "9"
+    },
+    {
+      "prompt": "Define single electrode potential",
+      "paper": "March 2023",
+      "part": "A",
+      "num": "4"
+    },
+    {
+      "prompt": "Define functionality",
+      "paper": "March 2023",
+      "part": "A",
+      "num": "3"
+    },
+    {
+      "prompt": "What are the monomeric units of Buna-S?",
+      "paper": "March 2023",
+      "part": "A",
+      "num": "8"
+    },
+    {
+      "prompt": "Classify chemical fuels",
+      "paper": "March 2023",
+      "part": "A",
+      "num": "9"
+    }
+  ]
+}

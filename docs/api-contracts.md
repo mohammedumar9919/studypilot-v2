@@ -1,8 +1,18 @@
 # API & schema contracts (frozen)
 
-**Version:** 1.8.0  
+**Version:** 1.13.0  
 **Status:** Frozen for Phase 1 parallel work (Agent B ingest ∥ Agent C retrieval prep).  
 **Change process:** Orchestrator + human approval only. Bump version and notify all active agents.
+
+**1.13.0 (2026-07-04 — SP-061c):** Syllabus-primary analytics on `GET .../exam/analytics`. Query params `primary` (`auto` \| `syllabus` \| `concepts`, default `auto`) and `include_flat` (bool, default hides flat concepts when syllabus-primary resolves). When parser unit/section hints exist or course is Tier 3 eligible, response adds `syllabus_primary` block: `summary` (paper/main/subpart counts, years), `units[]`, `top_topics[]`, `top_subtopics[]`, `papers_table[]`, `year_unit_matrix`. With `primary=auto|syllabus` and `include_flat=false`, `concepts[]` empty and `pagination.flat_hidden: true`. Label v2 in concept derive: syllabus embed match ≥ **0.78**, noise filter, optional subtopic titles. CLI validate: `python -m app.cli.exam_reference_report --validate --course chemistry`.
+
+**1.12.0 (2026-07-01 — SP-060d):** Answer-on-tap `POST /api/v1/courses/{course_id}/exam/answer`. Body: exactly one of `{ concept_id }` OR `{ question_id, structure_node_id? }`. Study lane only (`preset=study` via `run_study_question`); never `past_paper` retrieval. Tier 1 empty when no ready study docs (`answers_available: false`, `status: no_study_docs`, no LLM). Marks-based LLM budget when `question_id`: ≥8 → `quality`/long, 4–7 → `balanced`/medium, else `budget`/short. Optional `structure_node_id` scopes retrieval via `expand_structure_scope_to_document_ids` → `source_ids`. Response includes grounded `answer`, `sources[]`, per-PDF `coverage` hit/miss. Gate refuse: `status: not_in_materials`, `answer: null`, optional `refusal_reason`, `top_rerank_score`. Concept tap uses linked `exam_questions.prompt_text` when available. Optional `llm_budget_tier` on `generate_study_answer` only (no `pipeline.py` changes).
+
+**1.11.0 (2026-07-01 — SP-060c):** Tier 3 structure extension on `GET .../exam/analytics`. Query param `include_structure` (`auto` \| `true` \| `false`, default `auto`). When `structure_mode == "mapped"` and `course_units` exist, response adds `tier: 3`, `structure.units[]` tree with per-node exam metrics (rollup subtopic → part → unit), and `unmapped_concepts[]` for syllabus-gap concepts. Auto-mapping: normalized substring match + FastEmbed cosine ≥ **0.75** (local only). Tier 1 flat `concepts[]` unchanged when structure absent or `include_structure=false`. No manual concept→node M2M in v1.
+
+**1.10.0 (2026-07-01 — SP-060b):** Read-only Tier 1 exam concept analytics API `GET /api/v1/courses/{course_id}/exam/analytics`. Aggregates persisted `exam_concepts` / `exam_question_concepts` with marks-weighted `weightage_pct` (primary), `count_pct` (secondary), pagination (`limit` default 50, max 200), sort (`weightage_desc` \| `count_desc` \| `label_asc`), `include_unclassified` (default false), `min_questions` filter. Gates on `parsed_questions > 0` via `compute_exam_status()`. Null `exam_questions.marks` treated as **1** for aggregation. Long/short split at **8** marks. Paper reach + recurrence from `paper_label`; trend slope from best-effort year parse. CLI: `python -m app.cli.exam_analytics --course PPL`. **No retrieval or web changes.**
+
+**1.9.0 (2026-07-01 — SP-060a):** Ingest-time exam concept schema (Alembic 009). Tables: `exam_concepts` (course-level canonical labels + `is_unclassified` bucket), `exam_concept_aliases` (composite PK `course_id` + `alias` → `concept_id`), `exam_question_concepts` (multi-label M2M `question_id` + `concept_id`, `weight` default `1.0`). Partial unique index: one `is_unclassified=true` row per course. Derive is **ingest-time only** on `past_paper` (Agent B); idempotent course-level delete+rebuild. **Two-lane rule:** concept analytics read `past_paper` / `exam_questions` only — study retrieval unchanged. No query-time LLM extract.
 
 **1.8.0 (2026-06-15 — SP-013b):** Async upload returns HTTP **202** with `{document_id, job_id, status: "queued", ...}` when `STUDYPILOT_INGEST_ASYNC=1`. New `GET /api/v1/documents/{document_id}/ingest-status` returns `{document_id, job_id?, status, phase, progress_pct?, error?, document_status?}` (workspace-scoped via document course). Sync path (`STUDYPILOT_INGEST_ASYNC=0`, default) unchanged: **201** + `status: "ready"`.
 
@@ -43,6 +53,9 @@ Owned by orchestrator. Workers **read**; propose migrations via orchestrator onl
 | `document_subtopic_links` | Composite PK (`document_id`, `subtopic_id`) — M2M assignment (SP-053b) |
 | `documents` | `course_id`, `filename`, `doc_kind`, `status`, `page_count`, `extraction_quality` (JSONB), `topic_id` (nullable FK → `study_topics`) |
 | `ingest_jobs` | `id` (UUID PK), `document_id` FK → `documents`, `workspace_id` nullable FK → `workspaces`, `status`, `phase`, `error`, `created_at`, `updated_at` (SP-013a) |
+| `exam_concepts` | `id` (UUID PK), `course_id` FK → `courses`, `label`, `canonical_terms` (JSONB), `confidence`, `is_unclassified` (bool), `created_at` — one `is_unclassified=true` row per course (partial unique index) (SP-060a) |
+| `exam_concept_aliases` | Composite PK (`course_id`, `alias`); `concept_id` FK → `exam_concepts` (SP-060a) |
+| `exam_question_concepts` | Composite PK (`question_id`, `concept_id`); `weight` float default `1.0`; FKs → `exam_questions`, `exam_concepts` (SP-060a) |
 | `chunk_parents` | Page-range parent text for hierarchical RAG |
 | `chunks` | Child chunks; `page`, `text`, `text_tsv` (generated tsvector), `metadata` JSONB |
 | `chunk_embeddings` | `embedding` Vector(384), `embedding_model`, HNSW index |
@@ -811,6 +824,131 @@ Read-only PYQ topic/unit frequency for exam-prediction UI. **No LLM**, no side e
 Keyword matching is at **section** level internally; response aggregates to **unit/chapter** counts when outline has >12 sections unless `?detail=sections`. Unmatched → `"Unclassified"`. Study retrieval unchanged.
 
 **Ingest idempotency (Agent B):** On `past_paper` re-ingest, delete existing `exam_questions` for that document before inserting parsed rows.
+
+### Exam concept derive (SP-060a — ingest-time only)
+
+**Python entrypoint:**
+
+```python
+def derive_exam_concepts_for_course(session: Session, course_id: str) -> DeriveStats: ...
+```
+
+**CLI:**
+
+```
+python -m app.cli.derive_exam_concepts --course <course_id>
+```
+
+**Hook:** `ingest_document()` calls `derive_exam_concepts_for_course()` after `_persist_exam_questions()` when `doc_kind == "past_paper"`.
+
+**Idempotency:** Course-level delete+rebuild of `exam_concepts` (+ cascaded aliases / question links). `exam_questions` rows are not deleted.
+
+**Rules:** Deterministic YAKE-style extract + FastEmbed greedy cosine merge (`≥ 0.82`); skip clustering when `< 5` questions; low-confidence assignments → **Unclassified** bucket only (`is_unclassified=true`); multi-label via `exam_question_concepts.weight`. **Two-lane:** analytics from `past_paper` / `exam_questions` only — study retrieval unchanged.
+
+**Fixture:** `eval/fixtures/ppl/ppl_concept_seed.yaml` (algorithm tests; not `golden_set.jsonl`).
+
+**`DeriveStats` fields:** `course_id`, `question_count`, `concept_count`, `classified_concept_count`, `alias_count`, `linked_questions`, `unclassified_only_questions`, `unclassified_pct`.
+
+### `GET /api/v1/courses/{course_id}/exam/analytics` (SP-060b / SP-060c)
+
+Read-only concept analytics from persisted `exam_concepts` data. **No query-time extraction, no LLM, no side effects.** Legacy `GET .../exam/topic-frequency` unchanged.
+
+**Query params:**
+
+| Param | Default | Purpose |
+|-------|---------|---------|
+| `limit` | `50` | Top concepts (max **200**) |
+| `offset` | `0` | Pagination offset |
+| `sort` | `weightage_desc` | `weightage_desc` \| `count_desc` \| `label_asc` |
+| `include_unclassified` | `false` | Include Unclassified bucket in `concepts[]` |
+| `min_questions` | `1` | Filter concepts below unique-question threshold |
+| `include_structure` | `auto` | `auto` \| `true` \| `false` — Tier 3 structure block (SP-060c) |
+| `primary` | `auto` | `auto` \| `syllabus` \| `concepts` — syllabus-primary vs flat concepts (SP-061c) |
+| `include_flat` | auto | When syllabus-primary active, default **false** hides `concepts[]`; set `true` to include emergent concepts |
+
+**Tier detection:** `tier: 1` when no parsed questions, no `course_units`, or `structure_mode != "mapped"`. `tier: 3` when `structure_mode == "mapped"`, units exist, and `include_structure` is `auto` or `true`. Syllabus-primary mode bumps tier to at least **2** when `syllabus_primary` block is attached.
+
+**Response (200, tier 1 ready):** `{ course_id, tier: 1, analytics_ready: true, summary, concepts[], pagination }`
+
+**Response (200, tier 3 ready):** tier 1 fields **plus** `structure: { structure_mode, units[] }` and `unmapped_concepts[]`.
+
+**Response (200, syllabus-primary ready, SP-061c):** tier 1/3 fields **plus** `syllabus_primary: { primary, summary, units[], top_topics[], top_subtopics[], papers_table[], year_unit_matrix }`. When `include_flat=false`, `concepts: []` and `pagination.flat_hidden: true`.
+
+**Per-node fields (tier 3):** `unit_id` / `part_id` / `subtopic_id`, `title`, `question_count`, `unique_question_count`, `marks_total`, `weightage_pct`, `count_pct`, `long_count`, `short_count`, `paper_reach`, `recurrence_rate`, `concept_count`, `mapped_concept_ids`, nested `parts[]` / `subtopics[]`. Zero-question nodes included.
+
+**Unmapped concepts:** classified concepts with no syllabus node match (substring + FastEmbed ≥ **0.75**); syllabus-gap signal — never forced into Unit 1.
+
+**Auto-mapping (v1):** deterministic only; one primary node per concept; manual M2M overrides deferred.
+
+**`summary` fields:** `question_count`, `concept_count`, `classified_concept_count`, `unclassified_only_questions`, `unclassified_pct`, `total_marks`, `distinct_papers`, `long_question_threshold_marks` (**8**).
+
+**Per-concept fields:** `concept_id`, `label`, `aliases`, `is_unclassified`, `question_count` (weight sum), `unique_question_count`, `marks_total`, `weightage_pct`, `count_pct`, `paper_reach`, `recurrence_rate`, `avg_marks`, `long_count`, `short_count`, `last_seen_paper`, `trend_slope`, `rank`.
+
+**Metrics rules:** null `marks` → **1**; `weightage_pct` = concept marks / course total marks; `count_pct` = unique questions / course questions; long = `marks >= 8`; recurrence = papers-with-concept / distinct papers; trend = linear slope on yearly counts from `paper_label` (null if &lt;2 points).
+
+**Response (200, not ready):** course exists, `parsed_questions == 0` — `analytics_ready: false`, empty `concepts[]`.
+
+**Response (404):** unknown `course_id`.
+
+**Response (400):** invalid `sort`.
+
+**CLI:** `python -m app.cli.exam_analytics --course <course_id>`
+
+**Python entrypoint (analytics):**
+
+```python
+def compute_exam_analytics(
+    session: Session,
+    course_id: str,
+    *,
+    limit: int = 50,
+    offset: int = 0,
+    sort: str = "weightage_desc",
+    include_unclassified: bool = False,
+    min_questions: int = 1,
+    include_structure: str = "auto",
+    primary: str = "auto",
+    include_flat: bool | None = None,
+) -> dict: ...
+```
+
+### `POST /api/v1/courses/{course_id}/exam/answer` (SP-060d)
+
+Ground an exam **concept** or parsed **question** in study materials (`notes` / `textbook` / `syllabus` only). **Never** uses `past_paper` retrieval or `preset=exam`.
+
+**Request body (exactly one target):**
+
+```json
+{ "concept_id": "uuid" }
+```
+
+OR
+
+```json
+{ "question_id": "uuid", "structure_node_id": "uuid-optional" }
+```
+
+| Field | Required | Purpose |
+|-------|----------|---------|
+| `concept_id` | XOR with `question_id` | Tap a canonical exam concept |
+| `question_id` | XOR with `concept_id` | Tap a parsed past-paper question |
+| `structure_node_id` | optional | Tier 3 scope: unit, part, or subtopic UUID → document filter |
+
+**Response (200, ok):** `{ course_id, tier, answers_available, target_type, target_id, query_text, answer_length, status, answer, sources[], coverage }`
+
+**`coverage`:** `{ documents: [{ document_id, filename, status: hit\|miss, top_rerank_score? }], hit_count, miss_count }` over ready study PDFs for the course.
+
+**`answer_length`:** `short` \| `medium` \| `long` (marks-based for questions; `short` for concepts).
+
+**Response (200, tier 1 — no study docs):** `tier: 1`, `answers_available: false`, `status: no_study_docs`, `answer: null`, no LLM.
+
+**Response (200, gate refuse):** `status: not_in_materials`, `answer: null`, `coverage` populated, optional `refusal_reason`, `top_rerank_score`.
+
+**Response (400):** both/neither target; invalid UUID.
+
+**Response (404):** unknown concept, question, or structure node.
+
+**Python entrypoint:** `answer_exam_concept_or_question(session, course_id, ...)`
 
 **Example — generic Chemistry heatmap (unit rollup, default):**
 
