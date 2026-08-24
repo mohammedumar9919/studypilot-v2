@@ -72,6 +72,7 @@ This is the **single source of truth** for execution status. A new Cursor chat s
 | SP-064c golden reference framework | **DONE** | `golden_reference.schema.json`; PPL golden + validate loader; pytest schema + chemistry |
 | SP-064e PPL subject pack | **DONE** | `PplPack`; registry + fixture delegation; `exam_parse_audit --course PPL`; pytest registry |
 | SP-064d chemistry taxonomy tuning | **DONE (partial)** | Extended 4/5 units + 7/10 top topics vs 063b 3/5 + 6/10; core PASS unchanged |
+| SP-065 likely-topics answer-on-tap query rewrite | **DONE** | Concept tap uses label+aliases study query (not exam stem); study lane only; retry label-only; pytest `test_exam_answer.py` |
 | Phase H — ship + docs UAT closeout | **DONE** | H-a: push `f111c60` + [PR #2](https://github.com/mohammedumar9919/studypilot-v2/pull/2); H-b: UAT ref + this file; Track B user UAT PASS |
 
 **Status:** **Phase B — fully closed** (012a–d + **012.5 polish**). **Phase C — Platform slices DONE** (013a–c, 045a/b, 004a). **Phase E — SP-060a–060e DONE**; **SP-060f-a/b DONE** (API + UI predictions); **060f-c OPEN**. **Phase F — SP-061a–061d + SP-062a–062c DONE** (chemistry parse). **Phase G — SP-062d DONE** (chemistry golden validate: stored 302, core gate PASS). **Phase H — ship + docs DONE** (`f111c60`, PR #2 merged `ced6aa1`; Track B UAT PASS). **DEFERRED:** SP-060f-c (syllabus/unit predictions), SP-014 observability, SP-063 extended unit/topic validate (advisory), exam golden set, SP-041.
@@ -412,14 +413,15 @@ Retrieval untouched — no full eval for this closeout. Commit strategy: 3 logic
 | SP-060f-a heuristic `predictions` on analytics API | **DONE** — `predictions.py`; api-contracts **1.14.0** |
 | SP-060f-b predictions UI (`ExamAnalyticsPanel`) | **DONE** — Likely to appear section; `npm run build` PASS |
 | SP-060f-c syllabus/unit predictions | **OPEN** |
+| SP-065 likely-topics answer-on-tap reliability | **DONE** | Label/alias study query + one short retry; linked stems for `llm_budget_tier` only; no `retrieve.py`/`gate.py` change |
 | Auto-map concepts → syllabus nodes; unmapped list; rollup | **DONE** |
 | `pytest test_exam_analytics_structure.py` | **6/6 PASS** |
-| `pytest test_exam_answer.py` | **7/7 PASS** |
+| `pytest test_exam_answer.py` | **11/11 PASS** (SP-065 query rewrite) |
 | `pytest test_exam_predictions.py` + `test_exam_analytics.py` | **PASS** (060f-a) |
 | `npm run build` (060e/060f-b web) | **PASS** |
 | api-contracts **1.14.0** | **DONE** (060f-a) |
 
-**Council Stage 3:** SP-060d closed (2026-07-03). `pytest test_exam_answer.py` **7/7**; `quick_gate.ps1 -Smoke` **100% P@5 (10/10)** (`generate.py` budget override only). SP-060e closed (2026-07-03). Web-only — `npm run build` PASS. **SP-060f-a closed (2026-08-23)** — API predictions block. **SP-060f-b closed (2026-08-23)** — Likely topics UI in `ExamAnalyticsPanel`.
+**Council Stage 3:** SP-060d closed (2026-07-03). `pytest test_exam_answer.py` **7/7**; `quick_gate.ps1 -Smoke` **100% P@5 (10/10)** (`generate.py` budget override only). SP-060e closed (2026-07-03). Web-only — `npm run build` PASS. **SP-060f-a closed (2026-08-23)** — API predictions block. **SP-060f-b closed (2026-08-23)** — Likely topics UI in `ExamAnalyticsPanel`. **SP-065 closed (2026-08-23)** — concept tap study query rewrite; `pytest test_exam_answer.py` **11/11**; `retrieve.py`/`gate.py`/`rerank.py` untouched.
 
 ---
 
@@ -466,7 +468,7 @@ Retrieval untouched — no full eval for this closeout. Commit strategy: 3 logic
 
 | # | Priority | Item | Owner |
 |---|----------|------|-------|
-| 1 | **NEXT** | SP-064f ExamAnalyticsPanel universal pack wiring | — |
+| 1 | **NEXT** | SP-064f ExamAnalyticsPanel universal pack wiring | — (do not start until asked) |
 | 2 | **NEXT** | SP-064d follow-up — Unit I (−7) + fuels/composites topic drift | — |
 | 3 | **NEXT** | SP-060f-c syllabus/unit predictions (beyond concepts) | — |
 | 4 | **DEFER** | SP-014 observability / RAGAS | — |
