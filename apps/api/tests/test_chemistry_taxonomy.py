@@ -167,3 +167,36 @@ def test_part_c_main5_routes_coal_prompt_to_solid_fuels() -> None:
     unit, topic, _subtopic = classify_chemistry_question(question)
     assert topic == "Solid Fuels (Coal)"
     assert unit == "Unit IV"
+
+
+def test_a6_primary_secondary_battery_overrides_conducting_slot() -> None:
+    question = _question(
+        part="A",
+        question_number="6a",
+        prompt_text="Differentiate between primary and secondary batteries.",
+    )
+    unit, topic, _subtopic = classify_chemistry_question(question)
+    assert topic == "Battery Chemistry"
+    assert unit == "Unit I"
+
+
+def test_a7_sacrificial_anodic_routes_corrosion() -> None:
+    question = _question(
+        part="A",
+        question_number="7a",
+        prompt_text="Explain Sacrificial anodic protection method",
+    )
+    unit, topic, _subtopic = classify_chemistry_question(question)
+    assert topic == "Corrosion"
+    assert unit == "Unit II"
+
+
+def test_galvanic_corrosion_routes_electrochemistry() -> None:
+    question = _question(
+        part="A",
+        question_number="4a",
+        prompt_text="How is Galvanic Corrosion explained?",
+    )
+    unit, topic, _subtopic = classify_chemistry_question(question)
+    assert topic == "Electrochemistry"
+    assert unit == "Unit I"

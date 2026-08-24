@@ -15,6 +15,22 @@ from app.services.exam.ou_chemistry import (
 if TYPE_CHECKING:
     from app.models import ExamQuestion
 
+_POLYMER_NAMED_KEYWORDS: tuple[str, ...] = (
+    "nylon",
+    "kevlar",
+    "bakelite",
+    "buna",
+    "rubber",
+    "silicone",
+    "pvc",
+    "plastics",
+    "polyethylene",
+    "polypropylene",
+    "teflon",
+    "neoprene",
+    "polystyrene",
+)
+
 # Ordered specific-before-generic; mirrors golden topic labels in CHEMISTRY_GOLDEN_REFERENCE.json.
 _TOPIC_KEYWORDS: list[tuple[str, str, tuple[str, ...]]] = [
     (
@@ -121,20 +137,7 @@ _TOPIC_KEYWORDS: list[tuple[str, str, tuple[str, ...]]] = [
     (
         "Unit III",
         "Specific Polymers",
-        (
-            "nylon",
-            "kevlar",
-            "bakelite",
-            "buna",
-            "rubber",
-            "silicone",
-            "thermoplastic",
-            "thermoset",
-            "addition polymer",
-            "condensation polymer",
-            "polymerization",
-            "polymerisation",
-        ),
+        _POLYMER_NAMED_KEYWORDS,
     ),
     (
         "Unit IV",
@@ -261,6 +264,93 @@ _SUBTOPIC_RULES: list[tuple[str, tuple[str, ...]]] = [
 _TOPIC_TO_UNIT: dict[str, str] = {topic: unit for unit, topic, _ in _TOPIC_KEYWORDS}
 _POLYMER_MISLABELS = frozenset({"Conducting Polymers", "Specific Polymers"})
 _FUEL_TOPICS = frozenset({"Solid Fuels (Coal)", "Liquid Fuels", "Fuels — General"})
+_POLYMER_GENERIC_KEYWORDS: tuple[str, ...] = (
+    "thermoplastic",
+    "thermoset",
+    "thermosetting",
+    "addition polymer",
+    "condensation polymer",
+    "polymerization",
+    "polymerisation",
+    "degree of polymerization",
+    "degree of polymerisation",
+    "monomer",
+)
+_SOLID_FUEL_KEYWORDS: tuple[str, ...] = (
+    "coal",
+    "proximate",
+    "ultimate analysis",
+    "ranking of coal",
+)
+_GENERAL_FUEL_KEYWORDS: tuple[str, ...] = (
+    "calorific",
+    "dulong",
+    "hcv",
+    "lcv",
+    "combustion",
+    "lpg",
+    "cng",
+    "gaseous fuel",
+    "classification of fuel",
+)
+_LIQUID_FUEL_KEYWORDS: tuple[str, ...] = (
+    "petroleum",
+    "octane",
+    "cetane",
+    "cracking",
+    "liquid fuel",
+    "knocking",
+)
+_WATER_KEYWORDS: tuple[str, ...] = (
+    "edta",
+    "hardness",
+    "alkalinity",
+    "chlorination",
+    "chlorine",
+    "ion exchange",
+    "reverse osmosis",
+    "softening",
+    "demineral",
+    "de ionized",
+    "de-ionized",
+    "deionized",
+    "potable water",
+    "sterilize water",
+    "ppm",
+)
+_CORROSION_KEYWORDS: tuple[str, ...] = (
+    "corrosion",
+    "pitting",
+    "galvanizing",
+    "cathodic protection",
+    "sacrificial anode",
+    "sacrificial anodic",
+    "rust",
+    "hot dipping",
+)
+_BATTERY_KEYWORDS: tuple[str, ...] = (
+    "primary battery",
+    "secondary battery",
+    "primary and secondary",
+    "primary cell",
+    "secondary cell",
+    "lead-acid",
+    "lead acid",
+    "pb-acid",
+    "pb acid",
+    "lithium ion",
+    "lithium-ion",
+    "li-ion",
+    "li ion",
+    "zinc-carbon",
+    "zinc carbon",
+    "alkaline battery",
+    "dry cell",
+    "storage battery",
+    "button cell",
+    "battery",
+)
+_UNIT_I_CROSS_TOPICS = frozenset({"Electrochemistry", "Battery Chemistry"})
 _BIODIESEL_KEYWORDS: tuple[str, ...] = (
     "biodiesel",
     "transesterification",
@@ -287,6 +377,7 @@ def _apply_topic_overrides(prompt: str, topic: str) -> str:
     if topic == "Corrosion" and (
         "electrochemical corrosion" in lowered
         or ("electrochemical" in lowered and "corrosion" in lowered)
+        or ("galvanic" in lowered and "corrosion" in lowered)
     ):
         return "Electrochemistry"
     if topic == "Specific Polymers" and any(
@@ -342,6 +433,26 @@ def _keyword_hits(prompt: str, keywords: tuple[str, ...]) -> int:
     )
 
 
+def _specific_polymer_hits(
+    prompt: str,
+    keywords: tuple[str, ...],
+    *,
+    allow_generic: bool,
+) -> int:
+    hits = _keyword_hits(prompt, keywords)
+    if allow_generic:
+        hits += _keyword_hits(prompt, _POLYMER_GENERIC_KEYWORDS)
+    return hits
+
+
+def _map_unit_i_cross_content(prompt: str) -> str | None:
+    """Part C cross-unit prompts that golden rolls to Unit I electrochemistry/battery."""
+    in_unit = map_chemistry_topic_in_unit(prompt, "Unit I")
+    if in_unit in _UNIT_I_CROSS_TOPICS:
+        return in_unit
+    return None
+
+
 def _composite_hits(prompt: str, *, allow_weak: bool) -> int:
     lowered = _normalize_prompt(prompt)
     strong = sum(1 for keyword in _COMPOSITE_STRONG_KEYWORDS if keyword in lowered)
@@ -383,16 +494,24 @@ def map_chemistry_topic_in_unit(
     exclude_topics: frozenset[str] | None = None,
 ) -> str | None:
     allow_weak_composite = unit == "Unit V" and positional_topic == "Composites"
+    allow_generic_polymers = positional_topic == "Specific Polymers"
     best: tuple[str, int] | None = None
     for row_unit, topic, keywords in _TOPIC_KEYWORDS:
         if row_unit != unit or (exclude_topics and topic in exclude_topics):
             continue
-        hits = _topic_keyword_hits(
-            prompt,
-            topic,
-            keywords,
-            allow_weak_composite=allow_weak_composite and topic == "Composites",
-        )
+        if topic == "Specific Polymers":
+            hits = _specific_polymer_hits(
+                prompt,
+                keywords,
+                allow_generic=allow_generic_polymers,
+            )
+        else:
+            hits = _topic_keyword_hits(
+                prompt,
+                topic,
+                keywords,
+                allow_weak_composite=allow_weak_composite and topic == "Composites",
+            )
         if hits and (best is None or hits > best[1]):
             best = (topic, hits)
     return best[0] if best else None
@@ -415,13 +534,22 @@ def _resolve_composite_main_topic(
     if _composite_hits(prompt, allow_weak=True):
         _global_unit, global_topic = map_chemistry_topic_keywords(prompt)
         if global_topic and global_topic not in {"Composites"}:
-            return global_topic
+            if global_topic == "Specific Polymers" and not _specific_polymer_hits(
+                prompt, _POLYMER_NAMED_KEYWORDS, allow_generic=False
+            ):
+                pass
+            else:
+                return global_topic
         sibling = map_chemistry_topic_in_unit(
             prompt,
             unit,
             positional_topic="Composites",
             exclude_topics=frozenset({"Composites", "Green Chemistry"}),
         )
+        if sibling == "Specific Polymers" and not _specific_polymer_hits(
+            prompt, _POLYMER_NAMED_KEYWORDS, allow_generic=False
+        ):
+            sibling = None
         if sibling:
             return sibling
         return "Composites"
@@ -474,6 +602,80 @@ def _resolve_green_main_topic(
     return "Green Chemistry"
 
 
+def _resolve_solid_fuels_main_topic(
+    prompt: str,
+    unit: str,
+    *,
+    section_title: str | None = None,
+    allow_global: bool = True,
+) -> str:
+    """Coal-coded Part C mains: coal analysis stays; cross-content uses named-polymer gate."""
+    if _keyword_hits(prompt, _SOLID_FUEL_KEYWORDS) >= 1:
+        return "Solid Fuels (Coal)"
+    if _keyword_hits(prompt, _CORROSION_KEYWORDS) >= 1:
+        return "Corrosion"
+    if _keyword_hits(prompt, _BIODIESEL_KEYWORDS) >= 1:
+        return "Biodiesel"
+    if _keyword_hits(prompt, _GREEN_KEYWORDS) >= 1:
+        return "Green Chemistry"
+    unit_i = _map_unit_i_cross_content(prompt)
+    if unit_i:
+        return unit_i
+    named_polymer = _specific_polymer_hits(prompt, _POLYMER_NAMED_KEYWORDS, allow_generic=False)
+    if named_polymer:
+        return "Specific Polymers"
+    generic_polymer = _keyword_hits(prompt, _POLYMER_GENERIC_KEYWORDS)
+    if generic_polymer:
+        conducting = map_chemistry_topic_in_unit(
+            prompt,
+            unit,
+            positional_topic="Conducting Polymers",
+        )
+        if conducting == "Conducting Polymers":
+            return "Conducting Polymers"
+    if allow_global:
+        _global_unit, global_topic = map_chemistry_topic_keywords(prompt)
+        if global_topic and global_topic not in {"Solid Fuels (Coal)"}:
+            return global_topic
+        stored = (section_title or "").strip()
+        if stored and stored not in {"Unclassified", "Solid Fuels (Coal)"}:
+            return stored
+    return "Solid Fuels (Coal)"
+
+
+def _resolve_fuels_general_main_topic(
+    prompt: str,
+    unit: str,
+    *,
+    section_title: str | None = None,
+) -> str:
+    """Fuels — General positional mains (Part A Q7, Part B Q14): content-first fuel/corrosion/polymer."""
+    if _keyword_hits(prompt, _SOLID_FUEL_KEYWORDS) >= 1:
+        return "Solid Fuels (Coal)"
+    if _keyword_hits(prompt, _GENERAL_FUEL_KEYWORDS) >= 1:
+        return "Fuels — General"
+    if _keyword_hits(prompt, _LIQUID_FUEL_KEYWORDS) >= 1:
+        return "Liquid Fuels"
+    if _keyword_hits(prompt, _CORROSION_KEYWORDS) >= 1:
+        return "Corrosion"
+    if _keyword_hits(prompt, _BATTERY_KEYWORDS) >= 1:
+        return "Battery Chemistry"
+    unit_i = _map_unit_i_cross_content(prompt)
+    if unit_i:
+        return unit_i
+    if _specific_polymer_hits(prompt, _POLYMER_NAMED_KEYWORDS, allow_generic=False):
+        return "Specific Polymers"
+    if _keyword_hits(prompt, _BIODIESEL_KEYWORDS) >= 1:
+        return "Biodiesel"
+    _global_unit, global_topic = map_chemistry_topic_keywords(prompt)
+    if global_topic:
+        return global_topic
+    stored = (section_title or "").strip()
+    if stored and stored not in {"Unclassified", "Fuels — General"}:
+        return stored
+    return "Fuels — General"
+
+
 _STRICT_PART_C_MAINS = frozenset({"7"})
 
 
@@ -485,13 +687,18 @@ def _resolve_part_c_main_topic(
     section_title: str | None = None,
     main: str | None = None,
 ) -> str:
-    del section_title
     if default_topic == "Composites":
-        return _resolve_composite_main_topic(prompt, unit, allow_global=True)
+        return _resolve_composite_main_topic(prompt, unit, section_title=section_title, allow_global=True)
     if default_topic == "Green Chemistry":
-        return _resolve_green_main_topic(prompt, unit, allow_global=True)
+        return _resolve_green_main_topic(prompt, unit, section_title=section_title, allow_global=True)
+    if default_topic == "Solid Fuels (Coal)":
+        return _resolve_solid_fuels_main_topic(prompt, unit, section_title=section_title, allow_global=True)
 
-    in_unit = map_chemistry_topic_in_unit(prompt, unit)
+    in_unit = map_chemistry_topic_in_unit(
+        prompt,
+        unit,
+        positional_topic=default_topic,
+    )
     if in_unit:
         return in_unit
 
@@ -577,8 +784,38 @@ def classify_chemistry_question(question: ExamQuestion) -> tuple[str, str, str]:
                 section_title=question.section_title,
                 allow_global=True,
             )
+        elif default_topic == "Fuels — General":
+            topic = _resolve_fuels_general_main_topic(
+                prompt,
+                unit_hint,
+                section_title=question.section_title,
+            )
+        elif default_topic == "Battery Chemistry":
+            topic = map_chemistry_topic_in_unit(
+                prompt,
+                unit_hint,
+                positional_topic=default_topic,
+            ) or default_topic
+        elif default_topic == "Conducting Polymers":
+            if _keyword_hits(prompt, _BATTERY_KEYWORDS) >= 1:
+                topic = "Battery Chemistry"
+            else:
+                in_unit = map_chemistry_topic_in_unit(
+                    prompt,
+                    unit_hint,
+                    positional_topic=default_topic,
+                )
+                if in_unit:
+                    topic = in_unit
+                else:
+                    _global_unit, global_topic = map_chemistry_topic_keywords(prompt)
+                    topic = global_topic or default_topic
         else:
-            in_unit = map_chemistry_topic_in_unit(prompt, unit_hint)
+            in_unit = map_chemistry_topic_in_unit(
+                prompt,
+                unit_hint,
+                positional_topic=default_topic,
+            )
             if in_unit:
                 topic = in_unit
             elif default_topic in {"Specific Polymers", "Conducting Polymers", "Water Chemistry"}:
@@ -606,12 +843,32 @@ def classify_chemistry_question(question: ExamQuestion) -> tuple[str, str, str]:
                 section_title=question.section_title,
                 allow_global=True,
             )
+        elif default_topic == "Fuels — General":
+            topic = _resolve_fuels_general_main_topic(
+                prompt,
+                unit_hint,
+                section_title=question.section_title,
+            )
         else:
             if default_topic == "Electrochemistry" and main in {"11", "17"}:
-                in_unit = map_chemistry_topic_in_unit(prompt, unit_hint)
-                topic = in_unit or default_topic
+                if _keyword_hits(prompt, _BATTERY_KEYWORDS) >= 1:
+                    topic = "Battery Chemistry"
+                else:
+                    in_unit = map_chemistry_topic_in_unit(
+                        prompt,
+                        unit_hint,
+                        positional_topic=default_topic,
+                    )
+                    topic = in_unit or default_topic
             else:
-                topic = map_chemistry_topic_in_unit(prompt, unit_hint) or default_topic
+                topic = (
+                    map_chemistry_topic_in_unit(
+                        prompt,
+                        unit_hint,
+                        positional_topic=default_topic,
+                    )
+                    or default_topic
+                )
     elif part == "C" and main and main in _NEW_FORMAT_MAIN_UNITS:
         unit_hint, default_topic = _NEW_FORMAT_MAIN_UNITS[main]
         topic = _resolve_part_c_main_topic(
