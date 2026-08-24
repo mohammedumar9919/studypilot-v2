@@ -134,3 +134,36 @@ def test_classify_chemistry_subtopic_nernst() -> None:
         topic="Electrochemistry",
     )
     assert subtopic == "Nernst Equation / EMF"
+
+
+def test_part_a_main5_biodiesel_overrides_polymer_slot() -> None:
+    question = _question(
+        part="A",
+        question_number="5a",
+        prompt_text="Write the sources of Biodiesel",
+    )
+    unit, topic, _subtopic = classify_chemistry_question(question)
+    assert topic == "Biodiesel"
+    assert unit == "Unit V"
+
+
+def test_electrochemical_corrosion_prefers_electrochemistry() -> None:
+    question = _question(
+        part="B",
+        question_number="12a",
+        prompt_text="Define electrochemical corrosion. Discuss the mechanism of electrochemical corrosion.",
+    )
+    unit, topic, _subtopic = classify_chemistry_question(question)
+    assert topic == "Electrochemistry"
+    assert unit == "Unit I"
+
+
+def test_part_c_main5_routes_coal_prompt_to_solid_fuels() -> None:
+    question = _question(
+        part="C",
+        question_number="5a",
+        prompt_text="Explain proximate analysis of coal.",
+    )
+    unit, topic, _subtopic = classify_chemistry_question(question)
+    assert topic == "Solid Fuels (Coal)"
+    assert unit == "Unit IV"

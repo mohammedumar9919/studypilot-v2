@@ -102,6 +102,8 @@ _TOPIC_KEYWORDS: list[tuple[str, str, tuple[str, ...]]] = [
             "rust",
             "waterline",
             "hot dipping",
+            "surface coating",
+            "sacrificial anode",
         ),
     ),
     (
@@ -120,18 +122,18 @@ _TOPIC_KEYWORDS: list[tuple[str, str, tuple[str, ...]]] = [
         "Unit III",
         "Specific Polymers",
         (
-            "pvc",
             "nylon",
             "kevlar",
             "bakelite",
+            "buna",
             "rubber",
+            "silicone",
             "thermoplastic",
             "thermoset",
-            "buna",
             "addition polymer",
             "condensation polymer",
-            "monomer",
-            "plastics",
+            "polymerization",
+            "polymerisation",
         ),
     ),
     (
@@ -141,7 +143,6 @@ _TOPIC_KEYWORDS: list[tuple[str, str, tuple[str, ...]]] = [
             "coal",
             "proximate",
             "ultimate analysis",
-            "solid fuel",
             "ranking of coal",
         ),
     ),
@@ -259,6 +260,65 @@ _SUBTOPIC_RULES: list[tuple[str, tuple[str, ...]]] = [
 
 _TOPIC_TO_UNIT: dict[str, str] = {topic: unit for unit, topic, _ in _TOPIC_KEYWORDS}
 _POLYMER_MISLABELS = frozenset({"Conducting Polymers", "Specific Polymers"})
+_FUEL_TOPICS = frozenset({"Solid Fuels (Coal)", "Liquid Fuels", "Fuels — General"})
+_BIODIESEL_KEYWORDS: tuple[str, ...] = (
+    "biodiesel",
+    "transesterification",
+    "transesterify",
+    "bio diesel",
+    "biofuel",
+    "carbon neutral",
+    "methyl ester",
+    "jatropha",
+    "fatty acid",
+    "vegetable oil",
+    "esterification",
+)
+_GREEN_KEYWORDS: tuple[str, ...] = (
+    "green chemistry",
+    "atom economy",
+    "clean technology",
+    "principles of green",
+)
+
+
+def _apply_topic_overrides(prompt: str, topic: str) -> str:
+    lowered = _normalize_prompt(prompt)
+    if topic == "Corrosion" and (
+        "electrochemical corrosion" in lowered
+        or ("electrochemical" in lowered and "corrosion" in lowered)
+    ):
+        return "Electrochemistry"
+    if topic == "Specific Polymers" and any(
+        marker in lowered
+        for marker in (
+            "conducting polymer",
+            "polyacetylene",
+            "biodegradable polymer",
+            "poly lactic",
+            "polylactic",
+        )
+    ):
+        return "Conducting Polymers"
+    if topic == "Specific Polymers" and any(
+        marker in lowered for marker in ("surface coating", "corrosion control", "galvanizing")
+    ):
+        return "Corrosion"
+    if topic == "Water Chemistry" and any(
+        marker in lowered for marker in ("emf", "electrode potential", "nernst", "cell emf")
+    ):
+        return "Electrochemistry"
+    if topic == "Fuels — General" and any(
+        marker in lowered for marker in ("petroleum", "octane", "cetane", "cracking", "liquid fuel", "knocking")
+    ):
+        return "Liquid Fuels"
+    if topic == "Fuels — General" and any(
+        marker in lowered for marker in ("coal", "proximate", "ultimate analysis", "ranking of coal")
+    ):
+        return "Solid Fuels (Coal)"
+    if topic == "Solid Fuels (Coal)" and "petroleum" in lowered:
+        return "Liquid Fuels"
+    return topic
 
 
 def _base_main_number(question_number: str | None) -> str | None:
@@ -345,18 +405,22 @@ def _resolve_composite_main_topic(
     section_title: str | None = None,
     allow_global: bool = False,
 ) -> str:
-    """Composite-coded mains: tag Composites only with composite signal; else sibling/global."""
+    """Composite-coded mains: content-first; weak composite alone does not win."""
+    if _keyword_hits(prompt, _BIODIESEL_KEYWORDS) >= 1:
+        return "Biodiesel"
+    if _keyword_hits(prompt, _GREEN_KEYWORDS) >= 1:
+        return "Green Chemistry"
     if _composite_hits(prompt, allow_weak=False):
         return "Composites"
     if _composite_hits(prompt, allow_weak=True):
         _global_unit, global_topic = map_chemistry_topic_keywords(prompt)
-        if global_topic and global_topic != "Composites":
+        if global_topic and global_topic not in {"Composites"}:
             return global_topic
         sibling = map_chemistry_topic_in_unit(
             prompt,
             unit,
             positional_topic="Composites",
-            exclude_topics=frozenset({"Composites"}),
+            exclude_topics=frozenset({"Composites", "Green Chemistry"}),
         )
         if sibling:
             return sibling
@@ -366,11 +430,11 @@ def _resolve_composite_main_topic(
         unit,
         exclude_topics=frozenset({"Composites"}),
     )
-    if sibling:
+    if sibling and sibling != "Green Chemistry":
         return sibling
     if allow_global:
         _global_unit, global_topic = map_chemistry_topic_keywords(prompt)
-        if global_topic:
+        if global_topic and global_topic not in {"Composites"}:
             return global_topic
         stored = (section_title or "").strip()
         if stored and stored not in {"Unclassified", "Composites"}:
@@ -385,15 +449,27 @@ def _resolve_green_main_topic(
     section_title: str | None = None,
     allow_global: bool = True,
 ) -> str:
-    in_unit = map_chemistry_topic_in_unit(prompt, unit)
-    if in_unit and in_unit != "Green Chemistry":
-        return in_unit
+    if _keyword_hits(prompt, _BIODIESEL_KEYWORDS) >= 1:
+        return "Biodiesel"
+    if _keyword_hits(prompt, _GREEN_KEYWORDS) >= 1:
+        return "Green Chemistry"
+    if _composite_hits(prompt, allow_weak=False):
+        return "Composites"
     if allow_global:
         _global_unit, global_topic = map_chemistry_topic_keywords(prompt)
-        if global_topic and global_topic != "Green Chemistry":
+        if global_topic in _FUEL_TOPICS:
             return global_topic
+        if global_topic and global_topic not in {"Green Chemistry", "Composites"}:
+            return global_topic
+    in_unit = map_chemistry_topic_in_unit(
+        prompt,
+        unit,
+        exclude_topics=frozenset({"Composites"}),
+    )
+    if in_unit and in_unit not in {"Green Chemistry", "Composites"}:
+        return in_unit
     stored = (section_title or "").strip()
-    if stored and stored not in {"Unclassified", "Green Chemistry"}:
+    if stored and stored not in {"Unclassified", "Green Chemistry", "Composites"}:
         return stored
     return "Green Chemistry"
 
@@ -412,6 +488,8 @@ def _resolve_part_c_main_topic(
     del section_title
     if default_topic == "Composites":
         return _resolve_composite_main_topic(prompt, unit, allow_global=True)
+    if default_topic == "Green Chemistry":
+        return _resolve_green_main_topic(prompt, unit, allow_global=True)
 
     in_unit = map_chemistry_topic_in_unit(prompt, unit)
     if in_unit:
@@ -500,7 +578,14 @@ def classify_chemistry_question(question: ExamQuestion) -> tuple[str, str, str]:
                 allow_global=True,
             )
         else:
-            topic = default_topic
+            in_unit = map_chemistry_topic_in_unit(prompt, unit_hint)
+            if in_unit:
+                topic = in_unit
+            elif default_topic in {"Specific Polymers", "Conducting Polymers", "Water Chemistry"}:
+                _global_unit, global_topic = map_chemistry_topic_keywords(prompt)
+                topic = global_topic or default_topic
+            else:
+                topic = default_topic
     elif part == "C" and main == "1":
         _, topic = map_chemistry_topic_keywords(prompt)
         if not topic:
@@ -524,7 +609,7 @@ def classify_chemistry_question(question: ExamQuestion) -> tuple[str, str, str]:
         else:
             if default_topic == "Electrochemistry" and main in {"11", "17"}:
                 in_unit = map_chemistry_topic_in_unit(prompt, unit_hint)
-                topic = in_unit if in_unit == "Electrochemistry" else default_topic
+                topic = in_unit or default_topic
             else:
                 topic = map_chemistry_topic_in_unit(prompt, unit_hint) or default_topic
     elif part == "C" and main and main in _NEW_FORMAT_MAIN_UNITS:
@@ -563,6 +648,8 @@ def classify_chemistry_question(question: ExamQuestion) -> tuple[str, str, str]:
             _, keyword_topic = map_chemistry_topic_keywords(prompt)
             if keyword_topic and keyword_topic not in _POLYMER_MISLABELS:
                 topic = keyword_topic
+
+    topic = _apply_topic_overrides(prompt, topic)
 
     unit = (
         _TOPIC_TO_UNIT.get(topic)
