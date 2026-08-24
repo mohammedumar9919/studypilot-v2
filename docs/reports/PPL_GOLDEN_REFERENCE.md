@@ -49,6 +49,41 @@ Derived by aggregating the 25 `questions:` entries in `ppl_pyq_seed.yaml` for **
 
 Full `PPL previous papers.pdf` has **29/30 readable pages** after SP-043 OCR; only page 3 is seed-mapped in detail. **Do not treat ~50 as validate core gate** until SP-064e PPL parse populates `exam_questions`.
 
+## Live vs golden (SP-064e — 2026-08-23)
+
+| Metric | Golden (seed, page 3) | Live DB | Parser replay (full PDF) | Page-3 replay |
+|--------|----------------------|---------|--------------------------|---------------|
+| papers | 1 | 16 labels | 1 (seed label) | 1 |
+| mains | 17 | 18 | 18 | 17 |
+| subparts | 25 | 117 | 117 | **11** (under-count) |
+| total rows | — | 377 | 377 | 22 |
+
+**Core validate (`exam_reference_report --validate --course PPL`): FAIL** — expected. Golden targets **seed-confirmed page 3 only**; live DB holds the **full** `PPL previous papers.pdf` parse (~29 readable pages). Do **not** update golden counts without Human Gate.
+
+### Root cause
+
+1. **Scope mismatch:** `PPL_GOLDEN_REFERENCE.json` core gate is page-3 seed (17/25). Live `exam_questions` includes all readable pages → 117 subparts, 16 distinct `paper_label` values.
+2. **Page-3 subpart gap:** Parser replay on golden page 3 yields 11 subparts vs seed 25 (22 draft rows). Generic regex misses nested Part B sub-prompts on native page 3; fix belongs in `PplPack.parse_pages` hints (future) or dedicated PPL grammar — **not** `pyq_parser` if-chains.
+3. **PplPack wired:** `get_pack("PPL")` → `PplPack`; fixture paths delegated from pack; classify uses seed YAML + GenericPack structure fallback.
+
+### User terminal — re-ingest (if parser hints added later)
+
+```powershell
+cd C:\Projects\studypilot-v2\apps\api
+# Re-parse past_paper only (after parser changes):
+python -m app.cli.ingest_document --course PPL --file "..\..\eval\fixtures\ppl\PPL previous papers.pdf" --doc-kind past_paper
+python -m app.cli.exam_reference_report --validate --course PPL
+python -m app.cli.exam_parse_audit --course PPL
+```
+
+### Parse audit
+
+```powershell
+python -m app.cli.exam_parse_audit --course PPL
+```
+
+Report: [PPL_PARSE_AUDIT.md](./PPL_PARSE_AUDIT.md)
+
 ## Validate CLI
 
 ```powershell
@@ -57,8 +92,8 @@ python -m app.cli.exam_reference_report --validate --course PPL
 python -m app.cli.exam_reference_report --validate --course chemistry
 ```
 
-PPL uses `paper_count_source: labels` (no OU code labels). Core gate passes when stored `exam_questions` match seed-confirmed counts ± tolerances.
+PPL uses `paper_count_source: labels` (no OU code labels). Core gate passes when stored `exam_questions` match seed-confirmed counts ± tolerances **for the scoped corpus** (page 3 until full-PDF golden is Human-Gate approved).
 
-## Next slice
+## Status
 
-**SP-064e** — PPL subject pack + full parse → update golden counts from live DB (replace estimates).
+**SP-064e DONE** — `PplPack` registered; validate/audit CLIs work for PPL. Core gate remains FAIL until golden scope aligns with live corpus or page-3 parse reaches 25 subparts.

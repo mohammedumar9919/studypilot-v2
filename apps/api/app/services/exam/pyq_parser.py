@@ -868,21 +868,27 @@ def parse_exam_questions_from_pages(
         filename=filename,
         sample_text=sample_text,
     )
-    if pack.pack_id == "chemistry":
-        ou_drafts = pack.parse_pages(
+    if pack.should_use_custom_parse(
+        course_id=course_id,
+        filename=filename,
+        sample_text=sample_text,
+    ):
+        custom_drafts = pack.parse_pages(
             pages=pages,
             document_id=None,
             course_id=course_id,
             filename=filename,
             outline=outline,
         )
-        if ou_drafts:
+        if custom_drafts:
+            label = "OU chemistry" if pack.pack_id == "chemistry" else pack.pack_id.upper()
             logger.info(
-                "Parsed %d OU chemistry exam question(s) from bundled document %s",
-                len(ou_drafts),
+                "Parsed %d %s exam question(s) from %s",
+                len(custom_drafts),
+                label,
                 filename,
             )
-            return ou_drafts
+            return custom_drafts
 
     drafts: list[ExamQuestionDraft] = []
     pages_hit: set[int] = set()
