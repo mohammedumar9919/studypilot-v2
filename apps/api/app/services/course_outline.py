@@ -29,12 +29,9 @@ from app.services.pdf_extract import (
 
 OutlineSource = Literal["fixture", "uploaded", "extracted", "auto_stub"]
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
 _AUTO_STUB_PAGES_PER_SECTION = 10
 
-_OUTLINE_PATHS: dict[str, Path] = {
-    "PPL": _REPO_ROOT / "eval" / "fixtures" / "ppl" / "ppl_outline.yaml",
-}
+from app.services.exam.subjects.registry import pack_outline_fixture_path
 
 
 @lru_cache(maxsize=8)
@@ -43,8 +40,7 @@ def _load_outline_file(path: str) -> DocumentOutline:
 
 
 def outline_path_for_course(course_id: str) -> Path | None:
-    path = _OUTLINE_PATHS.get(course_id.upper())
-    return path if path and path.is_file() else None
+    return pack_outline_fixture_path(course_id)
 
 
 def _stored_outline_source(course: Course) -> OutlineSource | None:

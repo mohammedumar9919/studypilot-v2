@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import json
 
 from app.database import SessionLocal
-from app.services.exam.analytics import compute_exam_analytics_json
+from app.services.exam.analytics import compute_exam_analytics
 
 
 def main() -> None:
@@ -22,21 +23,42 @@ def main() -> None:
         choices=["auto", "true", "false"],
         help="Tier 3 structure block (default: auto)",
     )
+    parser.add_argument(
+        "--summary-only",
+        action="store_true",
+        help="Print predictions summary instead of full JSON",
+    )
     args = parser.parse_args()
 
     with SessionLocal() as session:
-        print(
-            compute_exam_analytics_json(
-                session,
-                args.course,
-                limit=args.limit,
-                offset=args.offset,
-                sort=args.sort,
-                include_unclassified=args.include_unclassified,
-                min_questions=args.min_questions,
-                include_structure=args.include_structure,
-            )
+        payload = compute_exam_analytics(
+            session,
+            args.course,
+            limit=args.limit,
+            offset=args.offset,
+            sort=args.sort,
+            include_unclassified=args.include_unclassified,
+            min_questions=args.min_questions,
+            include_structure=args.include_structure,
         )
+
+    if args.summary_only:
+        predictions = payload.get("predictions") or {}
+        items = predictions.get("items") or []
+        print(
+            f"course={payload.get('course_id')} ready={payload.get('analytics_ready')} "
+            f"formula={predictions.get('formula_version')} top_n={predictions.get('top_n')} "
+            f"predicted={len(items)}"
+        )
+        for item in items[:10]:
+            reasons = ",".join(item.get("reasons") or []) or "-"
+            print(
+                f"  #{item.get('rank')} {item.get('label')} "
+                f"score={item.get('score')} reasons={reasons}"
+            )
+        return
+
+    print(json.dumps(payload, indent=2))
 
 
 if __name__ == "__main__":

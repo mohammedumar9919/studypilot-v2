@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type 
 
 import type { PastPaperSource } from '../api/documentsClient'
 import { deleteCourseDocument, fetchPastPaperSources } from '../api/documentsClient'
-import type { ExamAnalyticsSort, SyllabusPrimaryBlock } from '../api/examAnalyticsClient'
+import type { ExamAnalyticsSort, ExamPredictionItem, SyllabusPrimaryBlock } from '../api/examAnalyticsClient'
 import { isExamPreset } from '../constants/queryPresets'
 import { useExamAnalytics } from '../hooks/useExamAnalytics'
 import type { ExamHeatmapSource, QueryPreset } from '../types'
@@ -35,6 +35,20 @@ function formatPct(value: number): string {
   return `${value.toFixed(1)}%`
 }
 
+function formatPredictionScore(score: number): string {
+  return `${(score * 100).toFixed(0)}%`
+}
+
+const PREDICTION_REASON_LABELS: Record<string, string> = {
+  high_weightage: 'High weightage',
+  recurs_across_papers: 'Recurring',
+  rising_trend: 'Rising trend',
+}
+
+function predictionReasonLabel(reason: string): string {
+  return PREDICTION_REASON_LABELS[reason] ?? reason.replace(/_/g, ' ')
+}
+
 function nodeIdForUnit(unit: { unit_id: string }): string {
   return unit.unit_id
 }
@@ -62,6 +76,61 @@ function sameIdSet(a: string[], b: string[]): boolean {
   const left = [...a].sort()
   const right = [...b].sort()
   return left.every((id, index) => id === right[index])
+}
+
+function LikelyTopicsSection({
+  items,
+  onOpenConcept,
+}: {
+  items: ExamPredictionItem[]
+  onOpenConcept: (conceptId: string, label: string) => void
+}) {
+  const maxScore = useMemo(() => Math.max(...items.map((item) => item.score), 0.001), [items])
+
+  return (
+    <section className="exam-predictions-section">
+      <h3 className="exam-analytics-section-title">Likely to appear</h3>
+      <p className="muted exam-analytics-section-intro">
+        Heuristic ranking from marks weightage, paper recurrence, and recent trend — tap a topic for
+        a study-material answer.
+      </p>
+      <ul className="exam-concept-list">
+        {items.map((item) => {
+          const barWidth = Math.round((item.score / maxScore) * 100)
+          return (
+            <li key={item.concept_id} className="exam-concept-row card-hover">
+              <button
+                type="button"
+                className="exam-concept-row-btn"
+                onClick={() => onOpenConcept(item.concept_id, item.label)}
+              >
+                <div className="exam-concept-row-header">
+                  <span className="exam-concept-rank">#{item.rank}</span>
+                  <span className="exam-concept-label">{item.label}</span>
+                  <span className="exam-concept-weightage">{formatPredictionScore(item.score)}</span>
+                </div>
+                <div className="topic-bar-track" aria-hidden="true">
+                  <div
+                    className="topic-bar-fill topic-bar-grow exam-prediction-bar"
+                    style={{ width: `${barWidth}%` }}
+                  />
+                </div>
+                {item.reasons.length > 0 && (
+                  <div className="exam-prediction-reasons">
+                    {item.reasons.map((reason) => (
+                      <span key={reason} className="exam-prediction-reason">
+                        {predictionReasonLabel(reason)}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+    </section>
+  )
 }
 
 function SyllabusPrimarySection({ syllabus }: { syllabus: SyllabusPrimaryBlock }) {
@@ -433,6 +502,7 @@ export function ExamAnalyticsPanel({
   const syllabus = data?.syllabus_primary
   const flatHidden = data?.pagination?.flat_hidden === true
   const showConcepts = !flatHidden || showAllConcepts
+  const predictionItems = data?.predictions?.items ?? []
 
   const maxWeightage = useMemo(() => {
     if (!data?.concepts.length) return 1
@@ -656,6 +726,10 @@ export function ExamAnalyticsPanel({
                 {showAllConcepts ? 'Hide emergent concepts' : 'Show emergent concepts'}
               </button>
             </div>
+          )}
+
+          {predictionItems.length > 0 && (
+            <LikelyTopicsSection items={predictionItems} onOpenConcept={openConcept} />
           )}
 
           {showConcepts && (

@@ -111,6 +111,25 @@ export type SyllabusPrimaryBlock = {
   year_unit_matrix: Record<string, Record<string, number>>
 }
 
+export type ExamPredictionReason =
+  | 'high_weightage'
+  | 'recurs_across_papers'
+  | 'rising_trend'
+
+export type ExamPredictionItem = {
+  concept_id: string
+  label: string
+  score: number
+  rank: number
+  reasons: ExamPredictionReason[]
+}
+
+export type ExamPredictionsBlock = {
+  items: ExamPredictionItem[]
+  formula_version: string
+  top_n: number
+}
+
 export type ExamAnalyticsResponse = {
   course_id: string
   tier: 1 | 2 | 3
@@ -118,6 +137,7 @@ export type ExamAnalyticsResponse = {
   summary: ExamAnalyticsSummary
   concepts: ExamAnalyticsConcept[]
   pagination: { limit: number; offset: number; total: number; flat_hidden?: boolean }
+  predictions?: ExamPredictionsBlock
   syllabus_primary?: SyllabusPrimaryBlock
   structure?: {
     structure_mode: string

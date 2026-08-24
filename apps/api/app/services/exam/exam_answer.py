@@ -17,6 +17,8 @@ from app.services.rag.pipeline import run_study_question
 from app.services.rag.retrieve import STUDY_DOC_KINDS
 
 STUDY_DOC_KIND_SET = set(STUDY_DOC_KINDS)
+_CONCEPT_QUERY_SUFFIX = "Use course notes and syllabus."
+_MAX_ALIAS_HINTS = 4
 
 
 def marks_to_budget(marks: int | None) -> tuple[str, str]:
@@ -135,6 +137,42 @@ def _base_payload(
     }
 
 
+def _normalized_concept_terms(concept: ExamConcept) -> list[str]:
+    ordered: list[str] = []
+    seen: set[str] = set()
+
+    def add(raw: object | None) -> None:
+        if raw is None:
+            return
+        text = " ".join(str(raw).split())
+        if not text:
+            return
+        key = text.casefold()
+        if key in seen:
+            return
+        seen.add(key)
+        ordered.append(text)
+
+    add(concept.label)
+    for term in concept.canonical_terms or []:
+        add(term)
+    for alias in concept.aliases or []:
+        add(getattr(alias, "alias", alias))
+    return ordered
+
+
+def build_concept_study_query(concept: ExamConcept, *, short: bool = False) -> str:
+    """Study-oriented retrieval query from the concept label — never the raw exam stem."""
+    terms = _normalized_concept_terms(concept)
+    label = terms[0] if terms else "this topic"
+    if short:
+        return f"Explain {label}. {_CONCEPT_QUERY_SUFFIX}"
+    extras = terms[1 : 1 + _MAX_ALIAS_HINTS]
+    if extras:
+        return f"Explain {label} (also: {', '.join(extras)}). {_CONCEPT_QUERY_SUFFIX}"
+    return f"Explain {label}. {_CONCEPT_QUERY_SUFFIX}"
+
+
 def _best_prompt_for_concept(session: Session, concept_id: uuid.UUID) -> ExamQuestion | None:
     linked = list(
         session.scalars(
@@ -191,12 +229,9 @@ def answer_exam_concept_or_question(
             return {"found": False, "course_id": course_id}
         linked_question = _best_prompt_for_concept(session, concept.id)
         if linked_question is not None:
-            query_text = linked_question.prompt_text.strip()
-            if linked_question.marks is not None:
-                query_text = f"{query_text}\n\n(Exam question — {linked_question.marks} marks.)"
+            # Linked stems are noisy YAKE/exam wording; use them for budget only.
             budget_tier, answer_length = marks_to_budget(linked_question.marks)
-        else:
-            query_text = f'Explain "{concept.label}" for exam preparation based on course materials.'
+        query_text = build_concept_study_query(concept, short=False)
         target_type = "concept"
         target_id = str(concept.id)
     else:
@@ -217,14 +252,22 @@ def answer_exam_concept_or_question(
         if scoped_ids:
             source_ids = scoped_ids
 
-    retrieval = run_study_question(
-        session,
-        course_id,
-        query_text,
-        preset="study",
-        source_ids=source_ids,
-    )
-    coverage = _build_coverage(study_documents, retrieval.chunks)
+    def _retrieve(q: str) -> tuple[Any, dict[str, Any]]:
+        result = run_study_question(
+            session,
+            course_id,
+            q,
+            preset="study",
+            source_ids=source_ids,
+        )
+        return result, _build_coverage(study_documents, result.chunks)
+
+    retrieval, coverage = _retrieve(query_text)
+    if concept_id is not None and retrieval.status != "ok":
+        retry_query = build_concept_study_query(concept, short=True)
+        if retry_query != query_text:
+            query_text = retry_query
+            retrieval, coverage = _retrieve(query_text)
 
     if retrieval.status != "ok" or not retrieval.chunks:
         payload = _base_payload(

@@ -30,9 +30,7 @@ _READABLE_CHAR_THRESHOLD = 100
 # PPL seed/golden supplements (generic courses use outline-derived phrases only).
 from app.services.rag.retrieve import _UNIT_PHRASES, _UNIT_TERMS  # noqa: E402
 
-_SEED_PATHS: dict[str, Path] = {
-    "PPL": _REPO_ROOT / "eval" / "fixtures" / "ppl" / "ppl_pyq_seed.yaml",
-}
+from app.services.exam.subjects.registry import pack_pyq_seed_path
 _FALLBACK_SECTION = "Unclassified"
 
 
@@ -201,14 +199,13 @@ def _serialize_generic_units(
 
 
 def _seed_path(course_id: str) -> Path | None:
-    path = _SEED_PATHS.get(course_id.upper())
-    return path if path and path.is_file() else None
+    return pack_pyq_seed_path(course_id)
 
 
 @lru_cache(maxsize=4)
 def _load_seed(course_id: str) -> dict[str, Any] | None:
-    path = _SEED_PATHS.get(course_id.upper())
-    if path is None or not path.is_file():
+    path = pack_pyq_seed_path(course_id)
+    if path is None:
         return None
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 

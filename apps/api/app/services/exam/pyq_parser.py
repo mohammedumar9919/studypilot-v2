@@ -13,13 +13,13 @@ from app.services.exam.ou_chemistry import (
     expand_new_format_questions,
     expand_old_format_questions,
     harvest_numbered_questions,
-    is_ou_chemistry_source,
     map_chemistry_unit_for_question,
     map_chemistry_unit_section,
     parse_part_a_subparts,
     split_ou_bundle_text,
     split_parts_loose,
 )
+from app.services.exam.subjects.registry import resolve_parse_pack
 from app.services.exam.topic_frequency import _READABLE_CHAR_THRESHOLD, _best_keyword_match, _build_keyword_patterns
 from app.services.pdf_extract import DocumentOutline, PageText
 
@@ -863,15 +863,32 @@ def parse_exam_questions_from_pages(
     patterns = _build_keyword_patterns(outline) if outline else None
     sample_text = pages[0].text if pages else ""
 
-    if is_ou_chemistry_source(course_id=course_id, filename=filename, sample_text=sample_text):
-        ou_drafts = _parse_ou_chemistry_bundle(pages, outline=outline, patterns=patterns)
-        if ou_drafts:
+    pack = resolve_parse_pack(
+        course_id=course_id,
+        filename=filename,
+        sample_text=sample_text,
+    )
+    if pack.should_use_custom_parse(
+        course_id=course_id,
+        filename=filename,
+        sample_text=sample_text,
+    ):
+        custom_drafts = pack.parse_pages(
+            pages=pages,
+            document_id=None,
+            course_id=course_id,
+            filename=filename,
+            outline=outline,
+        )
+        if custom_drafts:
+            label = "OU chemistry" if pack.pack_id == "chemistry" else pack.pack_id.upper()
             logger.info(
-                "Parsed %d OU chemistry exam question(s) from bundled document %s",
-                len(ou_drafts),
+                "Parsed %d %s exam question(s) from %s",
+                len(custom_drafts),
+                label,
                 filename,
             )
-            return ou_drafts
+            return custom_drafts
 
     drafts: list[ExamQuestionDraft] = []
     pages_hit: set[int] = set()

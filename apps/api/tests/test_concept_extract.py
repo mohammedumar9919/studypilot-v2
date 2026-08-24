@@ -249,7 +249,11 @@ def test_canonicalize_skips_merge_below_five_questions() -> None:
     phrases_a = extract_keyphrases("Define polymorphism in OOP.")
     phrases_b = extract_keyphrases("Explain polymorphic dispatch.")
     clusters = canonicalize_phrases(phrases_a + phrases_b, question_count=4)
-    assert len(clusters) == len(phrases_a) + len(phrases_b)
+    labels = {cluster.label.lower() for cluster in clusters}
+    assert "polymorphism oop" in labels
+    assert "polymorphic dispatch" in labels
+    assert "dispatch" not in labels
+    assert len(clusters) < len(phrases_a) + len(phrases_b)
 
 
 def test_canonicalize_greedy_merge_at_threshold() -> None:
@@ -259,6 +263,37 @@ def test_canonicalize_greedy_merge_at_threshold() -> None:
     labels = [cluster.label.lower() for cluster in clusters]
     assert any("object oriented programming" in label for label in labels)
     assert len(clusters) < len(left) + len(right)
+
+
+def test_canonicalize_rejects_generic_applications_label() -> None:
+    left = extract_keyphrases("Explain applications of conducting polymers in electronics.")
+    right = extract_keyphrases("Discuss applications and properties of composites.")
+    clusters = canonicalize_phrases(left + right, question_count=MIN_QUESTIONS_FOR_CLUSTERING)
+    labels = {cluster.label.lower() for cluster in clusters}
+    assert "applications" not in labels
+    assert "applications of" not in labels
+    assert any("conducting" in label or "composite" in label or "polymer" in label for label in labels)
+
+
+def test_canonicalize_prefers_specific_phrase_over_exam_verb() -> None:
+    phrases = extract_keyphrases(
+        "Define electrochemical corrosion mechanism with neat diagram."
+    )
+    clusters = canonicalize_phrases(phrases, question_count=MIN_QUESTIONS_FOR_CLUSTERING)
+    assert clusters
+    assert all(cluster.label.lower() != "neat diagram" for cluster in clusters)
+    assert any("corrosion" in cluster.label.lower() for cluster in clusters)
+
+
+def test_canonicalize_rejects_ocr_garbage_and_leading_and() -> None:
+    from app.services.exam.concept_canonicalize import _is_noise_label
+
+    assert _is_noise_label("Ag Ag")
+    assert _is_noise_label("and Kevlar")
+    assert _is_noise_label("constituents composites")
+    assert _is_noise_label("Datemnine Hewardness")
+    assert not _is_noise_label("Conducting polymers")
+    assert not _is_noise_label("Nernst equation and its derivation")
 
 
 def test_derive_unclassified_only_for_low_signal_prompt(db_session: Session) -> None:

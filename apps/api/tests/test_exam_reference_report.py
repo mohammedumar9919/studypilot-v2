@@ -8,6 +8,7 @@ from pathlib import Path
 from app.services.exam.reference_report import (
     is_subpart_row,
     load_golden_reference,
+    resolve_golden_path,
     validate_against_golden,
 )
 
@@ -55,11 +56,18 @@ def test_validate_empty_course(db_session) -> None:
 
 
 def test_default_golden_path_resolves() -> None:
-    from app.services.exam.reference_report import DEFAULT_GOLDEN_PATH
-
-    golden = load_golden_reference(DEFAULT_GOLDEN_PATH)
+    path = resolve_golden_path("chemistry")
+    assert path is not None
+    golden = load_golden_reference(path)
     assert golden["meta"]["papers"] == 13
-    assert DEFAULT_GOLDEN_PATH.name == "CHEMISTRY_GOLDEN_REFERENCE.json"
+    assert path.name == "CHEMISTRY_GOLDEN_REFERENCE.json"
+
+
+def test_resolve_ppl_golden_path() -> None:
+    path = resolve_golden_path("PPL")
+    assert path is not None
+    golden = load_golden_reference(path)
+    assert golden["meta"]["subparts"] == 25
 
 
 def test_validate_core_gate_ignores_extended_failures(db_session, monkeypatch) -> None:
@@ -76,6 +84,7 @@ def test_validate_core_gate_ignores_extended_failures(db_session, monkeypatch) -
             "paper_label_count": 13,
             "paper_code_count": 13,
             "unit_subparts": {"Unit I": 0},
+            "topic_subparts": {"Electrochemistry": 0},
             "top_topics": [("Electrochemistry", 0)],
             "year_unit_matrix": {},
             "papers": [],

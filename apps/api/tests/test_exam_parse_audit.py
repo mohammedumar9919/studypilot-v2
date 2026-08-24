@@ -112,7 +112,7 @@ def test_audit_fixture_codes_and_drafts() -> None:
     assert "papers_found" in markdown
     assert "papers_missing" in markdown
     assert "15164" in markdown
-    assert "Why ~105 rows" in markdown
+    assert "## Evidence" in markdown
     assert result.db_question_rows == 105
 
 
@@ -177,4 +177,4 @@ def test_write_report_and_course_from_chunks(db_session, tmp_path: Path) -> None
     text = written.read_text(encoding="utf-8")
     assert "papers_found" in text
     assert "papers_missing" in text
-    assert "SP-062a" in text
+    assert "Measure-only report" in text

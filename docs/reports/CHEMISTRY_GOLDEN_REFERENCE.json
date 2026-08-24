@@ -1,11 +1,15 @@
 {
+  "schema_version": "1.0",
   "meta": {
+    "course_id": "chemistry",
     "course": "BS 204 CH — Engineering Chemistry",
     "institution": "Osmania University (OU), Faculty of Engineering",
     "syllabus_period": "2020–2024",
     "papers": 13,
     "main_questions": 151,
     "subparts": 300,
+    "paper_count_source": "codes",
+    "confidence": "parse_confirmed",
     "years": [2021, 2022, 2023],
     "old_format_papers": 6,
     "new_format_papers": 7,

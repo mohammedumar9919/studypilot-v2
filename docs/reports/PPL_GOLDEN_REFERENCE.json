@@ -1,0 +1,101 @@
+{
+  "schema_version": "1.0",
+  "meta": {
+    "course_id": "PPL",
+    "course": "PPL — Programming Paradigms and Languages",
+    "institution": "Osmania University (OU) — reference corpus",
+    "papers": 1,
+    "main_questions": 17,
+    "subparts": 25,
+    "paper_count_source": "labels",
+    "confidence": "seed_confirmed",
+    "source": "eval/fixtures/ppl/ppl_pyq_seed.yaml (page 3) + eval/fixtures/ppl/ppl_outline.yaml",
+    "notes": "Confirmed counts from 25 seed-mapped prompts on July 2021 page 3 only. Full PDF (~29 readable pages) not fully parsed; see estimates block and PPL_GOLDEN_REFERENCE.md."
+  },
+  "units": [
+    {
+      "unit": "Unit 1",
+      "label": "Unit 1 — Preliminary Concepts",
+      "subpart_count": 8,
+      "subpart_pct": 32.0,
+      "topics": [
+        "Preliminary Concepts",
+        "Syntax and Semantics"
+      ]
+    },
+    {
+      "unit": "Unit 2",
+      "label": "Unit 2 — Data Types and Variables",
+      "subpart_count": 3,
+      "subpart_pct": 12.0,
+      "topics": [
+        "Data Types and Variables",
+        "Expressions and Statements & Control Structures"
+      ]
+    },
+    {
+      "unit": "Unit 3",
+      "label": "Unit 3 — Subprograms and Blocks",
+      "subpart_count": 1,
+      "subpart_pct": 4.0,
+      "topics": [
+        "Subprograms and Blocks"
+      ]
+    },
+    {
+      "unit": "Unit 4",
+      "label": "Unit 4 — Abstract Data Types",
+      "subpart_count": 9,
+      "subpart_pct": 36.0,
+      "topics": [
+        "Abstract Data Types & Object-Oriented Programming",
+        "Exception Handling & Logic Programming Language"
+      ]
+    },
+    {
+      "unit": "Unit 5",
+      "label": "Unit 5 — Functional Programming Languages",
+      "subpart_count": 4,
+      "subpart_pct": 16.0,
+      "topics": [
+        "Functional Programming Languages & Scripting Language"
+      ]
+    }
+  ],
+  "top_topics": [
+    { "name": "Syntax and Semantics", "unit": "Unit 1", "count": 6, "pct": 24.0 },
+    { "name": "Abstract Data Types & Object-Oriented Programming", "unit": "Unit 4", "count": 5, "pct": 20.0 },
+    { "name": "Functional Programming Languages & Scripting Language", "unit": "Unit 5", "count": 4, "pct": 16.0 },
+    { "name": "Exception Handling & Logic Programming Language", "unit": "Unit 4", "count": 4, "pct": 16.0 },
+    { "name": "Expressions and Statements & Control Structures", "unit": "Unit 2", "count": 2, "pct": 8.0 },
+    { "name": "Preliminary Concepts", "unit": "Unit 1", "count": 2, "pct": 8.0 },
+    { "name": "Data Types and Variables", "unit": "Unit 2", "count": 1, "pct": 4.0 },
+    { "name": "Subprograms and Blocks", "unit": "Unit 3", "count": 1, "pct": 4.0 }
+  ],
+  "papers": [
+    {
+      "session": "July 2021 Main & Backlog",
+      "year": "2021",
+      "format": "part_ab",
+      "main": 17,
+      "sub": 25,
+      "page": 3,
+      "note": "Only paper with full seed mapping in ppl_pyq_seed.yaml"
+    }
+  ],
+  "estimates": {
+    "confidence": "estimated",
+    "source": "docs/CURRENT_STATE.md Phase 3C (~50 keyword-estimated questions across readable PDF)",
+    "total_questions_estimated_full_pdf": 50,
+    "notes": "ESTIMATE — not used for validate core gate until SP-064e PPL parse populates exam_questions. Human Gate: confirm after full OCR parse."
+  },
+  "tolerances": {
+    "paper_count_exact": true,
+    "main_questions_min": 15,
+    "main_questions_max": 19,
+    "subpart_count_min": 23,
+    "subpart_count_max": 27,
+    "unit_subpart_delta_max": 2,
+    "top_topic_relative_pct": 20.0
+  }
+}

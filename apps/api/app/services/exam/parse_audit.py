@@ -203,6 +203,131 @@ def match_golden_codes(
     return assigned
 
 
+def _uses_label_golden(meta: dict[str, Any]) -> bool:
+    return str(meta.get("paper_count_source") or "").strip().lower() == "labels"
+
+
+def _golden_paper_key(row: dict[str, Any], *, label_mode: bool) -> str:
+    if label_mode:
+        session = str(row.get("session") or row.get("label") or "").strip()
+        if session:
+            return session
+        page = row.get("page")
+        return f"page-{page}" if page is not None else "unknown"
+    return str(row["code"])
+
+
+def _drafts_for_label_paper(
+    drafts: list[ExamQuestionDraft],
+    row: dict[str, Any],
+) -> list[ExamQuestionDraft]:
+    session = str(row.get("session") or row.get("label") or "").strip().lower()
+    page = row.get("page")
+    matched: list[ExamQuestionDraft] = []
+    for draft in drafts:
+        if page is not None and int(draft.page) == int(page):
+            matched.append(draft)
+            continue
+        label = (draft.paper_label or "").strip().lower()
+        if session and session in label:
+            matched.append(draft)
+    return matched
+
+
+def _build_golden_paper_audits(
+    *,
+    golden_papers: list[dict[str, Any]],
+    meta: dict[str, Any],
+    drafts: list[ExamQuestionDraft],
+    extracted_codes: list[str],
+    db_codes: list[str],
+    draft_totals: dict[str, tuple[int, int, int]] | None = None,
+    inherited_notes: dict[str, list[str]] | None = None,
+) -> tuple[list[GoldenCodeAudit], list[str], list[str]]:
+    label_mode = _uses_label_golden(meta)
+    matches = (
+        {}
+        if label_mode
+        else match_golden_codes(extracted_codes, [row["code"] for row in golden_papers])
+    )
+    code_audits: list[GoldenCodeAudit] = []
+    papers_found: list[str] = []
+    papers_missing: list[str] = []
+
+    for row in golden_papers:
+        paper_key = _golden_paper_key(row, label_mode=label_mode)
+        if label_mode:
+            related = _drafts_for_label_paper(drafts, row)
+            if draft_totals is not None:
+                rows, mains, subs = draft_totals.get(paper_key, (0, 0, 0))
+            else:
+                rows, mains, subs = draft_counts(related)
+            match_kind = "exact" if rows else "missing"
+            matched = paper_key if rows else None
+        elif draft_totals is not None:
+            code = row["code"]
+            assignment = matches[code]
+            match_kind = assignment["match"] or "missing"
+            matched = assignment["matched_code"]
+            rows, mains, subs = draft_totals.get(code, (0, 0, 0))
+            related = _drafts_for_code(drafts, matched or code)
+            if rows == 0 and related:
+                rows, mains, subs = draft_counts(related)
+        else:
+            code = row["code"]
+            assignment = matches[code]
+            match_kind = assignment["match"] or "missing"
+            matched = assignment["matched_code"]
+            related = _drafts_for_code(drafts, matched or code)
+            rows, mains, subs = draft_counts(related)
+
+        notes: list[str] = list((inherited_notes or {}).get(paper_key, []))
+        if match_kind == "missing":
+            papers_missing.append(paper_key)
+            if label_mode:
+                notes.append("no parser drafts on golden page/label")
+            else:
+                notes.append("code not found in extracted page text or splitter headers")
+        else:
+            papers_found.append(paper_key)
+        if match_kind == "fuzzy":
+            notes.append(f"fuzzy matched to extracted {matched}")
+        if not label_mode:
+            db_hit = any(
+                normalize_paper_code(db_code) == normalize_paper_code(paper_key)
+                or (matched and normalize_paper_code(db_code) == matched)
+                for db_code in db_codes
+            )
+            if db_hit:
+                notes.append("present on stored exam_questions.paper_label")
+            elif match_kind != "missing":
+                notes.append("found in extract; not present on stored paper_label")
+        if rows == 0 and match_kind != "missing":
+            notes.append("code seen but parser produced 0 drafts for this label")
+        if rows and (mains < row["main"] or subs < row["sub"]):
+            notes.append(
+                f"under-count vs golden main {mains}/{row['main']} sub {subs}/{row['sub']}"
+            )
+        code_audits.append(
+            GoldenCodeAudit(
+                code=paper_key,
+                session=row.get("session", ""),
+                year=str(row.get("year", "")),
+                paper_format=row.get("format", ""),
+                golden_main=int(row["main"]),
+                golden_sub=int(row["sub"]),
+                match=match_kind,
+                matched_code=matched,
+                match_source="extract" if match_kind != "missing" else None,
+                draft_rows=rows,
+                draft_mains=mains,
+                draft_subs=subs,
+                notes=notes,
+            )
+        )
+    return code_audits, papers_found, papers_missing
+
+
 def draft_counts(drafts: list[ExamQuestionDraft] | list[Any]) -> tuple[int, int, int]:
     rows = len(drafts)
     subs = sum(1 for draft in drafts if is_subpart_row(getattr(draft, "question_number", None)))
@@ -352,7 +477,6 @@ def audit_pages(
     document_label: str = "",
 ) -> ParseAuditResult:
     golden_papers = list(golden.get("papers") or [])
-    golden_codes = [row["code"] for row in golden_papers]
     meta = golden.get("meta") or {}
 
     page_audits: list[PageAudit] = []
@@ -427,59 +551,14 @@ def audit_pages(
         if code:
             extracted_codes.append(code)
 
-    matches = match_golden_codes(extracted_codes, golden_codes)
-    code_audits: list[GoldenCodeAudit] = []
-    papers_found: list[str] = []
-    papers_missing: list[str] = []
     db_codes = [c for c in (normalize_paper_code(c) for c in (db_paper_codes or [])) if c]
-
-    for row in golden_papers:
-        code = row["code"]
-        assignment = matches[code]
-        matched = assignment["matched_code"]
-        match_kind = assignment["match"] or "missing"
-        related = _drafts_for_code(drafts, matched or code)
-        rows, mains, subs = draft_counts(related)
-        notes: list[str] = []
-        if match_kind == "missing":
-            papers_missing.append(code)
-            notes.append("code not found in extracted page text or splitter headers")
-        else:
-            papers_found.append(code)
-        if match_kind == "fuzzy":
-            notes.append(f"fuzzy matched to extracted {matched}")
-        db_hit = any(
-            normalize_paper_code(db_code) == normalize_paper_code(code)
-            or (matched and normalize_paper_code(db_code) == matched)
-            for db_code in db_codes
-        )
-        if db_hit:
-            notes.append("present on stored exam_questions.paper_label")
-        elif match_kind != "missing":
-            notes.append("found in extract; not present on stored paper_label")
-        if rows == 0 and match_kind != "missing":
-            notes.append("code seen but parser produced 0 drafts for this label")
-        if rows and (mains < row["main"] or subs < row["sub"]):
-            notes.append(
-                f"under-count vs golden main {mains}/{row['main']} sub {subs}/{row['sub']}"
-            )
-        code_audits.append(
-            GoldenCodeAudit(
-                code=code,
-                session=row.get("session", ""),
-                year=str(row.get("year", "")),
-                paper_format=row.get("format", ""),
-                golden_main=int(row["main"]),
-                golden_sub=int(row["sub"]),
-                match=match_kind,
-                matched_code=matched,
-                match_source="extract" if match_kind != "missing" else None,
-                draft_rows=rows,
-                draft_mains=mains,
-                draft_subs=subs,
-                notes=notes,
-            )
-        )
+    code_audits, papers_found, papers_missing = _build_golden_paper_audits(
+        golden_papers=golden_papers,
+        meta=meta,
+        drafts=drafts,
+        extracted_codes=extracted_codes,
+        db_codes=db_codes,
+    )
 
     evidence = _build_evidence(
         db_question_rows=db_question_rows,
@@ -600,10 +679,13 @@ def _build_evidence(
 
 
 def merge_audit_results(results: list[ParseAuditResult], *, course_id: str) -> ParseAuditResult:
+    from app.services.exam.reference_report import resolve_golden_path
+
+    resolved_golden = resolve_golden_path(course_id) or DEFAULT_GOLDEN_PATH
     if len(results) == 1:
         return results[0]
     if not results:
-        golden = load_golden_reference(DEFAULT_GOLDEN_PATH)
+        golden = load_golden_reference(resolved_golden)
         return audit_pages(
             [],
             course_id=course_id,
@@ -612,8 +694,9 @@ def merge_audit_results(results: list[ParseAuditResult], *, course_id: str) -> P
             page_source="none",
         )
 
-    golden = load_golden_reference(DEFAULT_GOLDEN_PATH)
+    golden = load_golden_reference(resolved_golden)
     golden_papers = list(golden.get("papers") or [])
+    meta = golden.get("meta") or {}
     pages: list[PageAudit] = []
     sections: list[PaperSectionAudit] = []
     extracted_codes: list[str] = []
@@ -657,39 +740,16 @@ def merge_audit_results(results: list[ParseAuditResult], *, course_id: str) -> P
                 prev[2] + code_row.draft_subs,
             )
 
-    matches = match_golden_codes(extracted_codes, [row["code"] for row in golden_papers])
-    code_audits: list[GoldenCodeAudit] = []
-    papers_found: list[str] = []
-    papers_missing: list[str] = []
-    first_notes = {row.code: row for row in results[0].codes}
-    for row in golden_papers:
-        code = row["code"]
-        assignment = matches[code]
-        match_kind = assignment["match"] or "missing"
-        matched = assignment["matched_code"]
-        rows, mains, subs = draft_by_code.get(code, (0, 0, 0))
-        notes = list(first_notes.get(code).notes) if code in first_notes else []
-        if match_kind == "missing":
-            papers_missing.append(code)
-        else:
-            papers_found.append(code)
-        code_audits.append(
-            GoldenCodeAudit(
-                code=code,
-                session=row.get("session", ""),
-                year=str(row.get("year", "")),
-                paper_format=row.get("format", ""),
-                golden_main=int(row["main"]),
-                golden_sub=int(row["sub"]),
-                match=match_kind,
-                matched_code=matched,
-                match_source="extract" if match_kind != "missing" else None,
-                draft_rows=rows,
-                draft_mains=mains,
-                draft_subs=subs,
-                notes=notes,
-            )
-        )
+    first_notes = {row.code: row.notes for row in results[0].codes}
+    code_audits, papers_found, papers_missing = _build_golden_paper_audits(
+        golden_papers=golden_papers,
+        meta=meta,
+        drafts=[],
+        extracted_codes=extracted_codes,
+        db_codes=db_codes,
+        draft_totals=dict(draft_by_code),
+        inherited_notes=first_notes,
+    )
 
     evidence = _build_evidence(
         db_question_rows=db_rows,
@@ -730,7 +790,12 @@ def audit_course(
     *,
     golden_path: Path | None = None,
 ) -> ParseAuditResult:
-    golden = load_golden_reference(golden_path or DEFAULT_GOLDEN_PATH)
+    from app.services.exam.reference_report import resolve_golden_path
+
+    resolved = golden_path or resolve_golden_path(course_id)
+    if resolved is None:
+        raise FileNotFoundError(f"No golden reference for course={course_id!r}")
+    golden = load_golden_reference(resolved)
     documents = list(
         session.scalars(
             select(Document)
@@ -787,11 +852,12 @@ def audit_course(
 def format_audit_markdown(result: ParseAuditResult) -> str:
     found_n = len(result.papers_found)
     missing_n = len(result.papers_missing)
+    course_label = result.course_id.upper()
     lines = [
-        "# Chemistry parse forensic audit (SP-062a)",
+        f"# {course_label} parse forensic audit",
         "",
-        "Measure-only report. Parser / ingest code was not changed. "
-        "Do not treat this as a 13/151/300 fix.",
+        "Measure-only report. Parser / ingest code was not changed in this run. "
+        "Compare stored `exam_questions` and replay drafts to golden reference.",
         "",
         "## Summary",
         "",
@@ -805,7 +871,7 @@ def format_audit_markdown(result: ParseAuditResult) -> str:
         f"- papers_missing: **{missing_n}** — {', '.join(result.papers_missing) or '(none)'}",
         f"- Stored paper codes: {', '.join(result.db_paper_codes) or '(none)'}",
         "",
-        "## Why ~105 rows (evidence)",
+        "## Evidence",
         "",
     ]
     for item in result.evidence:

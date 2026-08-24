@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.models import ExamConcept, ExamConceptAlias, ExamQuestion, ExamQuestionConcept
 from app.services.exam.concept_derive import derive_exam_concepts_for_course
 from app.services.exam.exam_status import compute_exam_status
+from app.services.exam.predictions import DEFAULT_TOP_N, build_predictions, empty_predictions
 
 LONG_QUESTION_THRESHOLD_MARKS = 8
 DEFAULT_LIMIT = 50
@@ -102,6 +103,8 @@ def _can_use_syllabus_fast_path(
 
     if primary == "concepts" or include_flat is True or include_structure == "true":
         return False
+    if include_structure == "false":
+        return False
 
     has_hints = any(question.unit or question.section_title for question in questions)
     tier3 = is_tier3_eligible(session, course_id)
@@ -141,6 +144,8 @@ def _syllabus_fast_path_response(
         },
         "concepts": [],
         "pagination": {"limit": limit, "offset": offset, "total": 0, "flat_hidden": True},
+        # Concepts-only predictions (SP-060f-a); syllabus path has no concept rows yet.
+        "predictions": empty_predictions(top_n=DEFAULT_TOP_N),
     }
     resolved_primary = "syllabus" if primary in {"auto", "syllabus"} else primary
     return apply_primary_analytics(
@@ -169,6 +174,7 @@ def _empty_response(course_id: str, *, status: dict[str, Any]) -> dict[str, Any]
         },
         "concepts": [],
         "pagination": {"limit": DEFAULT_LIMIT, "offset": 0, "total": 0},
+        "predictions": empty_predictions(top_n=DEFAULT_TOP_N),
     }
 
 
@@ -398,6 +404,7 @@ def compute_exam_analytics(
         concept_rows.sort(key=lambda row: row["label"].lower())
 
     total = len(concept_rows)
+    predictions = build_predictions(concept_rows, top_n=DEFAULT_TOP_N)
     page = concept_rows[offset : offset + limit]
     for rank, row in enumerate(page, start=offset + 1):
         row["rank"] = rank
@@ -419,6 +426,7 @@ def compute_exam_analytics(
         },
         "concepts": page,
         "pagination": {"limit": limit, "offset": offset, "total": total},
+        "predictions": predictions,
     }
 
     from app.services.exam.analytics_structure import is_tier3_eligible, maybe_attach_structure
@@ -446,7 +454,7 @@ def compute_exam_analytics(
         syllabus_block = build_syllabus_primary_analytics(session, course_id, questions)
     else:
         has_hints = any(question.unit or question.section_title for question in questions)
-        if is_tier3_eligible(session, course_id) or has_hints:
+        if include_structure != "false" and (is_tier3_eligible(session, course_id) or has_hints):
             resolved_primary = "syllabus"
             syllabus_block = build_syllabus_primary_analytics(session, course_id, questions)
         else:
