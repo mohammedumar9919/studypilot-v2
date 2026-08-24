@@ -116,8 +116,13 @@ export type ExamPredictionReason =
   | 'recurs_across_papers'
   | 'rising_trend'
 
+export type ExamPredictionKind = 'concept' | 'unit' | 'topic'
+
 export type ExamPredictionItem = {
-  concept_id: string
+  kind?: ExamPredictionKind
+  concept_id?: string
+  unit_id?: string
+  topic_id?: string
   label: string
   score: number
   rank: number
@@ -126,6 +131,8 @@ export type ExamPredictionItem = {
 
 export type ExamPredictionsBlock = {
   items: ExamPredictionItem[]
+  units?: ExamPredictionItem[]
+  topics?: ExamPredictionItem[]
   formula_version: string
   top_n: number
 }

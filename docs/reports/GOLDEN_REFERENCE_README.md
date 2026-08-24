@@ -48,3 +48,14 @@ python -m app.cli.exam_reference_report --course PPL --json   # metrics only
 5. Optional: register pack `golden_path()` in `subjects/`
 
 **Do not** edit `eval/golden_set.jsonl` (retrieval eval — separate Human Gate).
+
+## Adding a new subject pack (SP-064)
+
+1. Create `apps/api/app/services/exam/subjects/<subject>.py` implementing `SubjectPack`:
+   - `pack_id`, `should_use_custom_parse`, `parse_pages` (or delegate to generic), `classify_question`, optional `golden_path` / fixture paths
+2. Register in `subjects/registry.py` (`get_pack` + `resolve_parse_pack` order — chemistry heuristics stay before generic)
+3. Optional: `eval/fixtures/<course>/` seed + outline YAML; golden JSON under `docs/reports/`
+4. Wire fixture paths via pack helpers (do not hardcode course paths in `topic_frequency` / `course_outline`)
+5. Add registry pytest coverage; run `exam_reference_report --validate --course <id>` if golden exists
+
+Reference packs: `ChemistryPack` (custom OU parse), `PplPack` (generic parse + seed classify), `GenericPack` (structure-first).

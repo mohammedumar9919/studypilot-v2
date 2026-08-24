@@ -14,7 +14,12 @@ from sqlalchemy.orm import Session, selectinload
 from app.models import ExamConcept, ExamConceptAlias, ExamQuestion, ExamQuestionConcept
 from app.services.exam.concept_derive import derive_exam_concepts_for_course
 from app.services.exam.exam_status import compute_exam_status
-from app.services.exam.predictions import DEFAULT_TOP_N, build_predictions, empty_predictions
+from app.services.exam.predictions import (
+    DEFAULT_TOP_N,
+    attach_unit_predictions,
+    build_predictions,
+    empty_predictions,
+)
 
 LONG_QUESTION_THRESHOLD_MARKS = 8
 DEFAULT_LIMIT = 50
@@ -144,8 +149,11 @@ def _syllabus_fast_path_response(
         },
         "concepts": [],
         "pagination": {"limit": limit, "offset": offset, "total": 0, "flat_hidden": True},
-        # Concepts-only predictions (SP-060f-a); syllabus path has no concept rows yet.
-        "predictions": empty_predictions(top_n=DEFAULT_TOP_N),
+        # Syllabus fast path: unit/topic predictions from syllabus_primary (SP-060f-c / 064f).
+        "predictions": attach_unit_predictions(
+            empty_predictions(top_n=DEFAULT_TOP_N),
+            syllabus_block=syllabus_block,
+        ),
     }
     resolved_primary = "syllabus" if primary in {"auto", "syllabus"} else primary
     return apply_primary_analytics(
@@ -463,12 +471,19 @@ def compute_exam_analytics(
     flat_default = not (resolved_primary == "syllabus" and int(payload.get("tier") or 1) >= 2)
     include_flat_resolved = include_flat if include_flat is not None else flat_default
 
-    return apply_primary_analytics(
+    result = apply_primary_analytics(
         payload,
         primary=resolved_primary,
         include_flat=include_flat_resolved,
         syllabus_block=syllabus_block,
     )
+    structure_block = (result.get("structure") if isinstance(result.get("structure"), dict) else None)
+    result["predictions"] = attach_unit_predictions(
+        result.get("predictions") or empty_predictions(top_n=DEFAULT_TOP_N),
+        syllabus_block=result.get("syllabus_primary") or syllabus_block,
+        structure=structure_block,
+    )
+    return result
 
 
 def compute_exam_analytics_json(session: Session, course_id: str, **kwargs: Any) -> str:

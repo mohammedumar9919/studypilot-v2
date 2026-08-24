@@ -1,8 +1,14 @@
 # API & schema contracts (frozen)
 
-**Version:** 1.16.0  
+**Version:** 1.17.0  
 **Status:** Frozen for Phase 1 parallel work (Agent B ingest ∥ Agent C retrieval prep).  
 **Change process:** Orchestrator + human approval only. Bump version and notify all active agents.
+
+**1.17.0 (2026-08-24 — SP-064f / SP-060f-c):** Exam analytics **predictions** extended beyond concepts. Same heuristic **v1** formula: `score = 0.45 * norm(weightage) + 0.35 * recurrence + 0.20 * norm_trend`. Response `predictions` now includes:
+- `items[]` — concept predictions (backward compatible; each item may include `kind: "concept"`)
+- `units[]` — unit predictions (`kind: "unit"`, `unit_id`, optional `concept_id` for answer-on-tap when structure-mapped)
+- `topics[]` — cheap topic rankings from `syllabus_primary.top_topics` when present (`kind: "topic"`)
+Unit rows prefer tier-3 `structure.units` (mapped concept_id); else `syllabus_primary.units` + `year_unit_matrix` recurrence/trend. Syllabus fast path (no concept rows) still returns empty `items` but may populate `units`/`topics`. **Universal** — any course via subject pack syllabus classify / structure; not chemistry-only. UI: Exam Analytics “Likely units” + empty states.
 
 **1.16.0 (2026-08-23 — SP-064c):** Course-agnostic **exam golden reference** framework. Schema: `docs/reports/golden_reference.schema.json`. Per-course files: `docs/reports/{COURSE}_GOLDEN_REFERENCE.json` (chemistry + PPL). Validate CLI resolves golden via subject pack `golden_path()` or filename convention. `python -m app.cli.exam_reference_report --validate --course <id>` — core gate: papers / mains / subparts; extended: unit + top-topic deltas. PPL uses `meta.paper_count_source: labels` (no OU codes). **No HTTP API shape changes.**
 
@@ -882,7 +888,7 @@ Read-only concept analytics from persisted `exam_concepts` data. **No query-time
 
 **Response (200, syllabus-primary ready, SP-061c):** tier 1/3 fields **plus** `syllabus_primary: { primary, summary, units[], top_topics[], top_subtopics[], papers_table[], year_unit_matrix }`. When `include_flat=false`, `concepts: []` and `pagination.flat_hidden: true`. `predictions` still present (empty when no concept rows on syllabus fast path).
 
-**`predictions` (SP-060f-a):** `{ items: [{ concept_id, label, score, rank, reasons[] }], formula_version: "v1", top_n: 10 }`. Ranked from the same filtered concept set used for analytics (before pagination; respects `document_ids` / `min_questions` / `include_unclassified`). Heuristic only — **no LLM**.
+**`predictions` (SP-060f-a / SP-064f):** `{ items: [{ kind?, concept_id, label, score, rank, reasons[] }], units?: [{ kind: "unit", unit_id?, concept_id?, label, score, rank, reasons[] }], topics?: [{ kind: "topic", topic_id?, label, score, rank, reasons[] }], formula_version: "v1", top_n: 10 }`. Concept `items` ranked from the filtered concept set (before pagination). `units` / `topics` from structure or syllabus_primary. Heuristic only — **no LLM**.
 
 **Per-node fields (tier 3):** `unit_id` / `part_id` / `subtopic_id`, `title`, `question_count`, `unique_question_count`, `marks_total`, `weightage_pct`, `count_pct`, `long_count`, `short_count`, `paper_reach`, `recurrence_rate`, `concept_count`, `mapped_concept_ids`, nested `parts[]` / `subtopics[]`. Zero-question nodes included.
 
