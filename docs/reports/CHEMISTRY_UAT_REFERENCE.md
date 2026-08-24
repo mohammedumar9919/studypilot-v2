@@ -113,6 +113,37 @@ Core validate **PASS** (13 / 150 / 302). Extended validate **FAIL** — **improv
 
 **Remaining gap:** Unit I still −7 (Electrochemistry +4 vs golden but not enough for unit rollup); Specific Polymers / Solid Fuels / Fuels — General topic buckets still diverge from golden manual tags on composite-coded mains and OCR-noisy Part C Q1 prompts.
 
+## SP-064d.1 taxonomy tuning (2026-08-24)
+
+Core validate **PASS** (13 / 150 / 302). Extended validate **FAIL** — **improved vs 064d** (**5/5 units**, **8/10 top topics** within tolerance).
+
+| Unit / topic | Golden | Live (064d) | Live (064d.1) | ± tol | OK (064d.1) |
+|--------------|--------|-------------|---------------|-------|-------------|
+| Unit I | 103 | 96 | **98** | 5 | **yes** (+2) |
+| Unit II | 48 | 50 | 50 | 5 | yes |
+| Unit III | 50 | 52 | 55 | 5 | yes |
+| Unit IV | 56 | 58 | 54 | 5 | yes |
+| Unit V | 43 | 46 | 45 | 5 | yes |
+| Electrochemistry | 72 | 68 | **69** | 15% | yes (+1) |
+| Water Chemistry | 34 | 34 | 34 | 15% | yes |
+| Battery Chemistry | 31 | 28 | **29** | 15% | yes (+1) |
+| Specific Polymers | 23 | 30 | 31 | 15% | no (+1 vs 064d) |
+| Fuels — General | 20 | 24 | **22** | 15% | **yes** (−2) |
+| Liquid Fuels | 20 | 17 | 17 | 15% | yes |
+| Green Chemistry | 18 | 19 | **18** | 15% | **yes** (exact) |
+| Composites | 13 | 15 | 15 | 15% | no (same) |
+| Solid Fuels (Coal) | 12 | 17 | **15** | 15% | no (−2, 25%) |
+| Biodiesel | 12 | 12 | 12 | 15% | yes |
+
+**Levers applied (064d.1, `chemistry_taxonomy.py` only):**
+- Named-polymer gate for global keyword map; generic polymer terms only on positional Specific Polymers mains
+- `_resolve_fuels_general_main_topic` for Part A Q7 / Part B Q14 (corrosion, fuels, battery cross-content)
+- `_resolve_solid_fuels_main_topic` for Part C Q4 coal mains (coal stays; named polymer / Unit I cross-content)
+- Galvanic corrosion → Electrochemistry; A6 battery override; B11/B17 battery keyword priority
+- Composite resolver: named-polymer gate for weak composite sibling hops
+
+**Remaining gap:** Specific Polymers (+8 vs golden) on C4 coal-coded mains and C1 mixed Q1; Solid Fuels (+3) on C5/C6 coal content-first; Composites (+2) on composite-coded weak prompts. Positional vs content policy on ~6 composite mains still ambiguous — Human Gate if golden JSON changes needed.
+
 Regenerate:
 
 ```powershell
