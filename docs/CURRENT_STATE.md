@@ -72,8 +72,9 @@ This is the **single source of truth** for execution status. A new Cursor chat s
 | SP-064c golden reference framework | **DONE** | `golden_reference.schema.json`; PPL golden + validate loader; pytest schema + chemistry |
 | SP-064e PPL subject pack | **DONE** | `PplPack`; registry + fixture delegation; `exam_parse_audit --course PPL`; pytest registry |
 | SP-064d chemistry taxonomy tuning | **DONE (partial)** | Extended 4/5 units + 7/10 top topics vs 063b 3/5 + 6/10; core PASS unchanged |
+| SP-064d.1 chemistry extended validate | **DONE (partial)** | 5/5 units + 8/10 topics; Fuels — General + Unit I flipped OK; core PASS |
 | SP-064f Phase I closeout (unit predictions + UX) | **DONE** | SP-060f-c units/topics; ExamAnalytics empty states; api-contracts **1.17.0** |
-| SP-064d.1 chemistry extended validate PASS | **DEFER** | Unit I (−7) + fuels/composites topic drift — not blocking Phase I |
+| SP-064d.1 chemistry extended validate PASS | **DEFER** | Specific Polymers / Solid Fuels / Composites topic drift — 8/10 topics, 5/5 units |
 | SP-065 likely-topics answer-on-tap query rewrite | **DONE** | Concept tap uses label+aliases study query (not exam stem); study lane only; retry label-only; pytest `test_exam_answer.py` |
 | Phase H — ship + docs UAT closeout | **DONE** | H-a: push `f111c60` + [PR #2](https://github.com/mohammedumar9919/studypilot-v2/pull/2); H-b: UAT ref + this file; Track B user UAT PASS |
 
@@ -471,7 +472,7 @@ Retrieval untouched — no full eval for this closeout. Commit strategy: 3 logic
 
 | # | Priority | Item | Owner |
 |---|----------|------|-------|
-| 1 | **NEXT** | SP-064d.1 chemistry extended validate PASS (Unit I / fuels / composites) | — |
+| 1 | **NEXT** | SP-064d.2 chemistry topic buckets (Specific Polymers / Solid Fuels / Composites) OR Human Gate on golden positional policy | — |
 | 2 | **DEFER** | SP-014 observability / RAGAS | — |
 | 3 | **DEFER** | SP-063 extended unit/topic validate — advisory | — |
 | 4 | **DEFER** | Exam golden set (human approval) | — |
