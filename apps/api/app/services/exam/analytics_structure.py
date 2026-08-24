@@ -140,6 +140,76 @@ def _cosine_similarity(left: list[float], right: list[float]) -> float:
     return float(np.dot(a, b) / denom)
 
 
+def _labels_for_matched_node(
+    node: StructureNode,
+    by_id: dict[str, StructureNode],
+) -> tuple[str, str, str]:
+    if node.node_type == "unit":
+        return node.title, node.title, node.title
+
+    if node.node_type == "part":
+        unit_node = by_id.get(node.parent_id or "")
+        unit_title = unit_node.title if unit_node else node.title
+        return unit_title, node.title, node.title
+
+    subtopic_title = node.title
+    parent = by_id.get(node.parent_id or "") if node.parent_id else None
+    if parent and parent.node_type == "part":
+        unit_node = by_id.get(parent.parent_id or "")
+        unit_title = unit_node.title if unit_node else parent.title
+        return unit_title, parent.title, subtopic_title
+
+    unit_title = parent.title if parent else subtopic_title
+    return unit_title, subtopic_title, subtopic_title
+
+
+def _prompt_terms(prompt: str, *, extra_terms: list[str] | None = None) -> list[str]:
+    terms = [_normalize(prompt)]
+    for term in extra_terms or []:
+        normalized = _normalize(term)
+        if normalized and normalized not in terms:
+            terms.append(normalized)
+    return terms
+
+
+def match_prompt_to_structure(
+    prompt: str,
+    structure: dict[str, Any],
+    *,
+    extra_terms: list[str] | None = None,
+) -> tuple[str, str, str] | None:
+    """Map an exam prompt onto mapped syllabus node titles (unit, topic, subtopic)."""
+    if not prompt.strip() or not structure.get("units"):
+        return None
+
+    nodes, by_id = _build_structure_nodes(structure)
+    if not nodes:
+        return None
+
+    terms = _prompt_terms(prompt, extra_terms=extra_terms)
+    prompt_vector = embed_texts([prompt.strip()])[0]
+    node_vectors = embed_texts([node.title for node in nodes])
+
+    best_node: StructureNode | None = None
+    best_score = -1.0
+    best_rank = -1
+
+    for node, node_vector in zip(nodes, node_vectors, strict=True):
+        score = max(_substring_score(terms, node.title), _cosine_similarity(prompt_vector, node_vector))
+        rank = _NODE_TYPE_RANK[node.node_type]
+        if score > best_score + TIE_BREAK_EPSILON or (
+            abs(score - best_score) <= TIE_BREAK_EPSILON and rank > best_rank
+        ):
+            best_score = score
+            best_rank = rank
+            best_node = node
+
+    if best_node is None or best_score < EMBED_MATCH_THRESHOLD:
+        return None
+
+    return _labels_for_matched_node(best_node, by_id)
+
+
 def auto_map_concepts_to_nodes(
     concepts: list[ExamConcept],
     nodes: list[StructureNode],

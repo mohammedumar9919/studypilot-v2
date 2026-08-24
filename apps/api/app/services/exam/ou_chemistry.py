@@ -147,7 +147,7 @@ class OuPaperHeader:
 def is_ou_chemistry_source(*, course_id: str, filename: str, sample_text: str = "") -> bool:
     course = course_id.strip().lower()
     name = filename.lower()
-    if course in {"chemistry", "cn", "chem"}:
+    if course in {"chemistry", "chem"}:
         return True
     if "ou question" in name or "engineering chemistry" in name:
         return True

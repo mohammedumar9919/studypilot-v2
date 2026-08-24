@@ -103,6 +103,8 @@ def _can_use_syllabus_fast_path(
 
     if primary == "concepts" or include_flat is True or include_structure == "true":
         return False
+    if include_structure == "false":
+        return False
 
     has_hints = any(question.unit or question.section_title for question in questions)
     tier3 = is_tier3_eligible(session, course_id)
@@ -452,7 +454,7 @@ def compute_exam_analytics(
         syllabus_block = build_syllabus_primary_analytics(session, course_id, questions)
     else:
         has_hints = any(question.unit or question.section_title for question in questions)
-        if is_tier3_eligible(session, course_id) or has_hints:
+        if include_structure != "false" and (is_tier3_eligible(session, course_id) or has_hints):
             resolved_primary = "syllabus"
             syllabus_block = build_syllabus_primary_analytics(session, course_id, questions)
         else:

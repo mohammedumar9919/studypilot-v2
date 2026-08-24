@@ -1,0 +1,35 @@
+{
+  "schema_version": "1.0",
+  "meta": {
+    "course_id": "COURSE_ID",
+    "course": "Human-readable course title",
+    "papers": 0,
+    "main_questions": 0,
+    "subparts": 0,
+    "paper_count_source": "codes",
+    "confidence": "seed_confirmed",
+    "source": "Describe derivation (seed YAML, parse audit, manual UAT)",
+    "notes": "Optional free-text assumptions"
+  },
+  "units": [
+    {
+      "unit": "Unit 1",
+      "label": "Unit 1 — Example",
+      "subpart_count": 0,
+      "subpart_pct": 0.0,
+      "topics": ["Topic A", "Topic B"]
+    }
+  ],
+  "top_topics": [
+    { "name": "Topic A", "unit": "Unit 1", "count": 0, "pct": 0.0 }
+  ],
+  "tolerances": {
+    "paper_count_exact": true,
+    "main_questions_min": 0,
+    "main_questions_max": 0,
+    "subpart_count_min": 0,
+    "subpart_count_max": 0,
+    "unit_subpart_delta_max": 5,
+    "top_topic_relative_pct": 15.0
+  }
+}

@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://studypilot.dev/schemas/golden_reference.schema.json",
+  "title": "ExamGoldenReference",
+  "description": "Course-agnostic exam analytics golden reference for validate CLI (SP-064c).",
+  "type": "object",
+  "required": ["meta", "units", "top_topics", "tolerances"],
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Golden file format version (e.g. 1.0)."
+    },
+    "meta": {
+      "type": "object",
+      "required": ["course", "papers", "main_questions", "subparts"],
+      "additionalProperties": true,
+      "properties": {
+        "course": { "type": "string", "minLength": 1 },
+        "course_id": { "type": "string", "minLength": 1 },
+        "papers": { "type": "integer", "minimum": 0 },
+        "main_questions": { "type": "integer", "minimum": 0 },
+        "subparts": { "type": "integer", "minimum": 0 },
+        "paper_count_source": {
+          "type": "string",
+          "enum": ["codes", "labels"],
+          "description": "Whether validate compares meta.papers to OU paper codes (default) or distinct paper labels."
+        },
+        "source": { "type": "string" },
+        "confidence": {
+          "type": "string",
+          "enum": ["seed_confirmed", "parse_confirmed", "estimated", "mixed"]
+        },
+        "notes": { "type": "string" }
+      }
+    },
+    "units": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["unit", "subpart_count"],
+        "additionalProperties": true,
+        "properties": {
+          "unit": { "type": "string", "minLength": 1 },
+          "label": { "type": "string" },
+          "subpart_count": { "type": "integer", "minimum": 0 },
+          "subpart_pct": { "type": "number" },
+          "main_pct": { "type": "number" },
+          "topics": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "top_topics": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name", "count"],
+        "additionalProperties": true,
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "count": { "type": "integer", "minimum": 0 },
+          "pct": { "type": "number" },
+          "unit": { "type": "string" }
+        }
+      }
+    },
+    "tolerances": {
+      "type": "object",
+      "required": ["unit_subpart_delta_max", "top_topic_relative_pct"],
+      "additionalProperties": true,
+      "properties": {
+        "paper_count_exact": { "type": "boolean" },
+        "main_questions_min": { "type": "integer", "minimum": 0 },
+        "main_questions_max": { "type": "integer", "minimum": 0 },
+        "subpart_count_min": { "type": "integer", "minimum": 0 },
+        "subpart_count_max": { "type": "integer", "minimum": 0 },
+        "unit_subpart_delta_max": { "type": "number", "minimum": 0 },
+        "unit_subpart_pct_delta_pp": { "type": "number", "minimum": 0 },
+        "top_topic_relative_pct": { "type": "number", "minimum": 0 }
+      }
+    },
+    "papers": { "type": "array" },
+    "top_subtopics": { "type": "array" },
+    "year_unit_matrix": { "type": "object" },
+    "year_main_counts": { "type": "object" },
+    "estimates": {
+      "type": "object",
+      "description": "Optional full-corpus estimates (Human Gate review) separate from confirmed meta counts.",
+      "additionalProperties": true
+    }
+  }
+}

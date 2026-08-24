@@ -1,8 +1,14 @@
 # API & schema contracts (frozen)
 
-**Version:** 1.14.0  
+**Version:** 1.16.0  
 **Status:** Frozen for Phase 1 parallel work (Agent B ingest ∥ Agent C retrieval prep).  
 **Change process:** Orchestrator + human approval only. Bump version and notify all active agents.
+
+**1.16.0 (2026-08-23 — SP-064c):** Course-agnostic **exam golden reference** framework. Schema: `docs/reports/golden_reference.schema.json`. Per-course files: `docs/reports/{COURSE}_GOLDEN_REFERENCE.json` (chemistry + PPL). Validate CLI resolves golden via subject pack `golden_path()` or filename convention. `python -m app.cli.exam_reference_report --validate --course <id>` — core gate: papers / mains / subparts; extended: unit + top-topic deltas. PPL uses `meta.paper_count_source: labels` (no OU codes). **No HTTP API shape changes.**
+
+**1.15.1 (2026-08-23 — SP-064b):** GenericPack **structure-first taxonomy** for syllabus-primary analytics on mapped non-chemistry courses. `classify_question(question, session=...)` matches exam prompts to persisted course structure via substring + local FastEmbed cosine ≥ **0.75** (same threshold as tier-3 concept mapping), then falls back to parser `unit`/`section_title`. **No HTTP response shape changes** — `syllabus_primary.units[]` / `top_topics[]` now populate with real structure node titles for CN/DS/user-mapped courses.
+
+**1.15.0 (2026-08-23 — SP-064a):** Internal **Subject Pack Registry** (`apps/api/app/services/exam/subjects/`). `get_pack(course_id)` routes ingest-time PYQ parse, syllabus-primary taxonomy, and golden-reference validation. Chemistry is the first registered pack (`ChemistryPack`); unknown courses use `GenericPack`. **No HTTP response shape changes** — `GET .../exam/analytics`, `syllabus_primary`, and validate CLI outputs unchanged. Fix: `course_id=cn` (Computer Networks) no longer triggers OU chemistry parser (`cn` removed from chemistry aliases; use `chemistry`/`chem` or filename heuristics only).
 
 **1.14.0 (2026-08-23 — SP-060f-a):** No-LLM heuristic **predictions** block on `GET .../exam/analytics`. Successful / empty analytics responses include `predictions: { items[], formula_version, top_n }`. Concepts-only ranking (no syllabus/unit predictions yet). Formula **v1**: `score = 0.45 * norm(weightage_pct) + 0.35 * recurrence_rate + 0.20 * norm_trend(trend_slope)` where `norm(weightage_pct)` is max-normalized within the concept set and `norm_trend` is min–max over non-null slopes (null → 0). Default `top_n` **10**. Each item: `concept_id`, `label`, `score`, `rank`, `reasons[]` (`high_weightage`, `recurs_across_papers`, `rising_trend`). Empty concept set → `items: []`. Syllabus-primary fast path (no concept rows) returns empty prediction items. **No LLM / OpenRouter** on this path. CLI: `python -m app.cli.exam_analytics --course <id> [--summary-only]`.
 
