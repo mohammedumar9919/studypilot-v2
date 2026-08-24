@@ -89,7 +89,7 @@ function LikelyTopicsSection({
 
   return (
     <section className="exam-predictions-section">
-      <h3 className="exam-analytics-section-title">Likely to appear</h3>
+      <h3 className="exam-analytics-section-title">Likely topics</h3>
       <p className="muted exam-analytics-section-intro">
         Heuristic ranking from marks weightage, paper recurrence, and recent trend — tap a topic for
         a study-material answer.
@@ -97,34 +97,97 @@ function LikelyTopicsSection({
       <ul className="exam-concept-list">
         {items.map((item) => {
           const barWidth = Math.round((item.score / maxScore) * 100)
+          const canTap = Boolean(item.concept_id)
           return (
-            <li key={item.concept_id} className="exam-concept-row card-hover">
-              <button
-                type="button"
-                className="exam-concept-row-btn"
-                onClick={() => onOpenConcept(item.concept_id, item.label)}
-              >
-                <div className="exam-concept-row-header">
-                  <span className="exam-concept-rank">#{item.rank}</span>
-                  <span className="exam-concept-label">{item.label}</span>
-                  <span className="exam-concept-weightage">{formatPredictionScore(item.score)}</span>
+            <li key={`${item.kind ?? 'concept'}-${item.concept_id ?? item.label}`} className="exam-concept-row card-hover">
+              {canTap ? (
+                <button
+                  type="button"
+                  className="exam-concept-row-btn"
+                  onClick={() => onOpenConcept(item.concept_id!, item.label)}
+                >
+                  <PredictionRowBody item={item} barWidth={barWidth} />
+                </button>
+              ) : (
+                <div className="exam-concept-row-static">
+                  <PredictionRowBody item={item} barWidth={barWidth} />
                 </div>
-                <div className="topic-bar-track" aria-hidden="true">
-                  <div
-                    className="topic-bar-fill topic-bar-grow exam-prediction-bar"
-                    style={{ width: `${barWidth}%` }}
-                  />
+              )}
+            </li>
+          )
+        })}
+      </ul>
+    </section>
+  )
+}
+
+function PredictionRowBody({
+  item,
+  barWidth,
+}: {
+  item: ExamPredictionItem
+  barWidth: number
+}) {
+  return (
+    <>
+      <div className="exam-concept-row-header">
+        <span className="exam-concept-rank">#{item.rank}</span>
+        <span className="exam-concept-label">{item.label}</span>
+        <span className="exam-concept-weightage">{formatPredictionScore(item.score)}</span>
+      </div>
+      <div className="topic-bar-track" aria-hidden="true">
+        <div
+          className="topic-bar-fill topic-bar-grow exam-prediction-bar"
+          style={{ width: `${barWidth}%` }}
+        />
+      </div>
+      {item.reasons.length > 0 && (
+        <div className="exam-prediction-reasons">
+          {item.reasons.map((reason) => (
+            <span key={reason} className="exam-prediction-reason">
+              {predictionReasonLabel(reason)}
+            </span>
+          ))}
+        </div>
+      )}
+    </>
+  )
+}
+
+function LikelyUnitsSection({
+  items,
+  onOpenUnit,
+}: {
+  items: ExamPredictionItem[]
+  onOpenUnit: (item: ExamPredictionItem) => void
+}) {
+  const maxScore = useMemo(() => Math.max(...items.map((item) => item.score), 0.001), [items])
+
+  return (
+    <section className="exam-predictions-section exam-predictions-units">
+      <h3 className="exam-analytics-section-title">Likely units</h3>
+      <p className="muted exam-analytics-section-intro">
+        Syllabus units ranked by the same weightage / recurrence / trend heuristic. Tap opens the
+        first mapped concept when available.
+      </p>
+      <ul className="exam-concept-list">
+        {items.map((item) => {
+          const barWidth = Math.round((item.score / maxScore) * 100)
+          const canTap = Boolean(item.concept_id)
+          return (
+            <li
+              key={`unit-${item.unit_id ?? item.label}`}
+              className={`exam-concept-row ${canTap ? 'card-hover' : ''}`}
+            >
+              {canTap ? (
+                <button type="button" className="exam-concept-row-btn" onClick={() => onOpenUnit(item)}>
+                  <PredictionRowBody item={item} barWidth={barWidth} />
+                </button>
+              ) : (
+                <div className="exam-concept-row-static" title="No mapped concept for answer-on-tap">
+                  <PredictionRowBody item={item} barWidth={barWidth} />
                 </div>
-                {item.reasons.length > 0 && (
-                  <div className="exam-prediction-reasons">
-                    {item.reasons.map((reason) => (
-                      <span key={reason} className="exam-prediction-reason">
-                        {predictionReasonLabel(reason)}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </button>
+              )}
             </li>
           )
         })}
@@ -402,7 +465,17 @@ function PastPaperSourcesBar({
   }
 
   if (sources.length === 0) {
-    return null
+    return (
+      <section className="exam-past-paper-sources exam-analytics-empty" role="status">
+        <h3 className="exam-analytics-section-title">Past-paper sources</h3>
+        <p>No past-paper PDFs on this course yet.</p>
+        <ul className="exam-analytics-empty-steps">
+          <li>Upload with document type Past paper</li>
+          <li>Wait for ingest to finish</li>
+          <li>Refresh analytics after parsing completes</li>
+        </ul>
+      </section>
+    )
   }
 
   return (
@@ -503,6 +576,11 @@ export function ExamAnalyticsPanel({
   const flatHidden = data?.pagination?.flat_hidden === true
   const showConcepts = !flatHidden || showAllConcepts
   const predictionItems = data?.predictions?.items ?? []
+  const predictionUnits = data?.predictions?.units ?? []
+  const hasStructure = Boolean(data?.structure?.units?.length)
+  const isMapped = data?.tier === 3 && hasStructure
+  const predictionsEmpty =
+    data?.analytics_ready === true && predictionItems.length === 0 && predictionUnits.length === 0
 
   const maxWeightage = useMemo(() => {
     if (!data?.concepts.length) return 1
@@ -526,6 +604,11 @@ export function ExamAnalyticsPanel({
     const conceptId = primaryConceptId(mappedConceptIds)
     if (!conceptId) return
     openConcept(conceptId, title, nodeId)
+  }
+
+  const openPredictedUnit = (item: ExamPredictionItem) => {
+    if (!item.concept_id) return
+    openConcept(item.concept_id, item.label, item.unit_id)
   }
 
   return (
@@ -594,11 +677,11 @@ export function ExamAnalyticsPanel({
 
       {data && !data.analytics_ready && (
         <div className="exam-analytics-empty" role="status">
-          <p>No parsed past-paper questions yet.</p>
+          <p>No past-paper questions parsed yet.</p>
           <ul className="exam-analytics-empty-steps">
-            <li>Upload a PDF using the Past paper document type</li>
-            <li>Wait for indexing to finish</li>
-            <li>Refresh this panel to see concept analytics</li>
+            <li>Upload a PDF with document type Past paper</li>
+            <li>Wait for indexing to finish (ingest status ready)</li>
+            <li>Refresh this panel to see syllabus and concept analytics</li>
           </ul>
         </div>
       )}
@@ -617,6 +700,16 @@ export function ExamAnalyticsPanel({
                 <strong>{data.summary.distinct_papers}</strong> papers
               </span>
               {data.tier === 3 && <span className="exam-analytics-tier-badge">Tier 3 · mapped</span>}
+            </div>
+          )}
+
+          {!isMapped && data.tier < 3 && (
+            <div className="exam-analytics-hint" role="status">
+              <p className="muted">
+                Course structure is not mapped yet. Promote a syllabus under Course structure to unlock
+                the syllabus tree and unit-level answer-on-tap. Unit predictions still work from
+                past-paper unit labels when available.
+              </p>
             </div>
           )}
 
@@ -728,8 +821,23 @@ export function ExamAnalyticsPanel({
             </div>
           )}
 
+          {predictionUnits.length > 0 && (
+            <LikelyUnitsSection items={predictionUnits} onOpenUnit={openPredictedUnit} />
+          )}
+
           {predictionItems.length > 0 && (
             <LikelyTopicsSection items={predictionItems} onOpenConcept={openConcept} />
+          )}
+
+          {predictionsEmpty && (
+            <div className="exam-analytics-empty exam-predictions-empty" role="status">
+              <p>No likely topics or units yet.</p>
+              <ul className="exam-analytics-empty-steps">
+                <li>Ensure past papers finished indexing with parsed questions</li>
+                <li>Derive exam concepts if the flat list is empty</li>
+                <li>Map a syllabus for unit-level rankings with answer-on-tap</li>
+              </ul>
+            </div>
           )}
 
           {showConcepts && (
@@ -751,7 +859,9 @@ export function ExamAnalyticsPanel({
 
               {data.concepts.length === 0 ? (
                 <p className="muted" role="status">
-                  {flatHidden ? 'Emergent concepts hidden — use the toggle above to expand.' : 'No classified concepts yet.'}
+                  {flatHidden
+                    ? 'Emergent concepts hidden — use the toggle above to expand.'
+                    : 'No classified concepts yet. Upload study notes and re-run concept derive after past papers are indexed.'}
                 </p>
               ) : (
                 <ul className="exam-concept-list">

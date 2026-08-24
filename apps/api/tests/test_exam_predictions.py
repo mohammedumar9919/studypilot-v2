@@ -1,8 +1,18 @@
-"""Deterministic tests for SP-060f-a exam predictions heuristic."""
+"""Deterministic tests for SP-060f / SP-064f exam predictions heuristic."""
 
 from __future__ import annotations
 
-from app.services.exam.predictions import FORMULA_VERSION, build_predictions, empty_predictions
+from app.services.exam.predictions import (
+    FORMULA_VERSION,
+    KIND_CONCEPT,
+    KIND_TOPIC,
+    KIND_UNIT,
+    attach_unit_predictions,
+    build_predictions,
+    empty_predictions,
+    unit_rows_from_structure,
+    unit_rows_from_syllabus_primary,
+)
 
 
 def _row(
@@ -25,9 +35,12 @@ def _row(
 def test_empty_concepts_yield_empty_items() -> None:
     result = build_predictions([])
     assert result["items"] == []
+    assert result["units"] == []
+    assert result["topics"] == []
     assert result["formula_version"] == FORMULA_VERSION
     assert result["top_n"] == 10
     assert empty_predictions()["items"] == []
+    assert empty_predictions()["units"] == []
 
 
 def test_score_order_weightage_recurrence_trend() -> None:
@@ -66,6 +79,7 @@ def test_score_order_weightage_recurrence_trend() -> None:
     result = build_predictions(rows, top_n=10)
     labels = [item["label"] for item in result["items"]]
     assert labels == ["Acids", "Bases", "Catalysts"]
+    assert all(item["kind"] == KIND_CONCEPT for item in result["items"])
 
     acids, bases, catalysts = result["items"]
     # norm(w): 50/50=1, 30/50=0.6, 10/50=0.2
@@ -135,3 +149,81 @@ def test_null_trend_does_not_raise_and_scores_zero_trend_term() -> None:
     # 0.45*1 + 0.35*1 + 0.20*0 = 0.8
     assert result["items"][0]["score"] == 0.8
     assert "rising_trend" not in result["items"][0]["reasons"]
+
+
+def test_unit_rows_from_syllabus_primary_score_and_rank() -> None:
+    syllabus = {
+        "summary": {"paper_count": 3},
+        "units": [
+            {"unit": "Unit I", "subpart_pct": 40.0, "subpart_count": 40},
+            {"unit": "Unit II", "subpart_pct": 20.0, "subpart_count": 20},
+            {"unit": "Unit III", "subpart_pct": 10.0, "subpart_count": 10},
+        ],
+        "year_unit_matrix": {
+            "2021": {"Unit I": 5, "Unit II": 2, "Unit III": 0},
+            "2022": {"Unit I": 8, "Unit II": 4, "Unit III": 1},
+            "2023": {"Unit I": 12, "Unit II": 6, "Unit III": 2},
+        },
+        "top_topics": [
+            {"name": "Electrochemistry", "count": 20, "pct": 20.0},
+            {"name": "Water", "count": 10, "pct": 10.0},
+        ],
+    }
+    unit_rows = unit_rows_from_syllabus_primary(syllabus)
+    assert len(unit_rows) == 3
+    assert unit_rows[0]["label"] == "Unit I"
+    assert unit_rows[0]["recurrence_rate"] == 1.0  # present all 3 years
+
+    result = build_predictions([], unit_rows=unit_rows, topic_rows=None)
+    assert result["items"] == []
+    assert [row["kind"] for row in result["units"]] == [KIND_UNIT] * 3
+    assert result["units"][0]["label"] == "Unit I"
+    assert result["units"][0]["rank"] == 1
+    assert "high_weightage" in result["units"][0]["reasons"]
+
+
+def test_attach_unit_predictions_prefers_structure_for_concept_id() -> None:
+    base = empty_predictions()
+    syllabus = {
+        "summary": {"paper_count": 1},
+        "units": [{"unit": "Unit A", "subpart_pct": 50.0, "subpart_count": 5}],
+        "year_unit_matrix": {"2023": {"Unit A": 5}},
+        "top_topics": [{"name": "Topic A", "count": 5, "pct": 50.0}],
+    }
+    structure = {
+        "units": [
+            {
+                "unit_id": "u1",
+                "title": "Unit A",
+                "weightage_pct": 55.0,
+                "recurrence_rate": 1.0,
+                "mapped_concept_ids": ["concept-abc"],
+            }
+        ]
+    }
+    enriched = attach_unit_predictions(base, syllabus_block=syllabus, structure=structure)
+    assert len(enriched["units"]) == 1
+    assert enriched["units"][0]["kind"] == KIND_UNIT
+    assert enriched["units"][0]["concept_id"] == "concept-abc"
+    assert enriched["units"][0]["unit_id"] == "u1"
+    assert len(enriched["topics"]) == 1
+    assert enriched["topics"][0]["kind"] == KIND_TOPIC
+    assert enriched["topics"][0]["label"] == "Topic A"
+
+
+def test_unit_rows_from_structure_maps_first_concept() -> None:
+    rows = unit_rows_from_structure(
+        {
+            "units": [
+                {
+                    "unit_id": "uid",
+                    "title": "Polymers",
+                    "weightage_pct": 12.0,
+                    "recurrence_rate": 0.5,
+                    "mapped_concept_ids": ["c1", "c2"],
+                }
+            ]
+        }
+    )
+    assert rows[0]["concept_id"] == "c1"
+    assert rows[0]["label"] == "Polymers"

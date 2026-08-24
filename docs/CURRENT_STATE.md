@@ -1,6 +1,6 @@
 # StudyPilot v2 — Current State
 
-**Last updated:** 2026-08-23  
+**Last updated:** 2026-08-24  
 **Status owner:** Lead orchestrator (update this file after every phase gate or major eval run)
 
 This is the **single source of truth** for execution status. A new Cursor chat should read this first, then [LEAD_ORCHESTRATOR.md](LEAD_ORCHESTRATOR.md) and [COUNCIL_ORCHESTRATION.md](COUNCIL_ORCHESTRATION.md).
@@ -57,7 +57,7 @@ This is the **single source of truth** for execution status. A new Cursor chat s
 | SP-060e exam analytics tab (Phase E) | **DONE** | `ExamAnalyticsPanel`; universal `heatmap_available` gate; tier 1/3 + answer-on-tap |
 | SP-060f-a exam predictions API (Phase E) | **DONE** | `predictions` on `GET .../exam/analytics`; heuristic v1; api-contracts **1.14.0**; pytest predictions + analytics |
 | SP-060f-b exam predictions UI (Phase E) | **DONE** | `Likely to appear` in `ExamAnalyticsPanel`; reason chips; answer-on-tap; `npm run build` PASS |
-| SP-060f-c syllabus/unit predictions | **OPEN** | Beyond concepts-only (not started) |
+| SP-060f-c syllabus/unit predictions | **DONE** | SP-064f: `predictions.units[]` / `topics[]`; same v1 heuristic; universal via syllabus/structure |
 | SP-061a chemistry golden reference + validate CLI (Phase F) | **DONE** | `CHEMISTRY_GOLDEN_REFERENCE.json`; `exam_reference_report --validate`; pytest 6/6 |
 | SP-061b OU chemistry pyq_parser v2 (Phase F) | **DONE** | `ou_chemistry.py`; fixture tests 6/6; live re-ingest pending user terminal |
 | SP-061c syllabus-primary analytics API (Phase F) | **DONE** | `syllabus_primary` block; `primary`/`include_flat`; label v2; api-contracts 1.13.0; pytest 4/4 |
@@ -72,10 +72,12 @@ This is the **single source of truth** for execution status. A new Cursor chat s
 | SP-064c golden reference framework | **DONE** | `golden_reference.schema.json`; PPL golden + validate loader; pytest schema + chemistry |
 | SP-064e PPL subject pack | **DONE** | `PplPack`; registry + fixture delegation; `exam_parse_audit --course PPL`; pytest registry |
 | SP-064d chemistry taxonomy tuning | **DONE (partial)** | Extended 4/5 units + 7/10 top topics vs 063b 3/5 + 6/10; core PASS unchanged |
+| SP-064f Phase I closeout (unit predictions + UX) | **DONE** | SP-060f-c units/topics; ExamAnalytics empty states; api-contracts **1.17.0** |
+| SP-064d.1 chemistry extended validate PASS | **DEFER** | Unit I (−7) + fuels/composites topic drift — not blocking Phase I |
 | SP-065 likely-topics answer-on-tap query rewrite | **DONE** | Concept tap uses label+aliases study query (not exam stem); study lane only; retry label-only; pytest `test_exam_answer.py` |
 | Phase H — ship + docs UAT closeout | **DONE** | H-a: push `f111c60` + [PR #2](https://github.com/mohammedumar9919/studypilot-v2/pull/2); H-b: UAT ref + this file; Track B user UAT PASS |
 
-**Status:** **Phase B — fully closed** (012a–d + **012.5 polish**). **Phase C — Platform slices DONE** (013a–c, 045a/b, 004a). **Phase E — SP-060a–060e DONE**; **SP-060f-a/b DONE** (API + UI predictions); **060f-c OPEN**. **Phase F — SP-061a–061d + SP-062a–062c DONE** (chemistry parse). **Phase G — SP-062d DONE** (chemistry golden validate: stored 302, core gate PASS). **Phase H — ship + docs DONE** (`f111c60`, PR #2 merged `ced6aa1`; Track B UAT PASS). **DEFERRED:** SP-060f-c (syllabus/unit predictions), SP-014 observability, SP-063 extended unit/topic validate (advisory), exam golden set, SP-041.
+**Status:** **Phase B — fully closed** (012a–d + **012.5 polish**). **Phase C — Platform slices DONE** (013a–c, 045a/b, 004a). **Phase E — SP-060a–060e DONE**; **SP-060f-a/b/c DONE** (concept + unit predictions). **Phase I (064a–f) — DONE** (subject packs + golden framework + PPL pack + taxonomy partial + unit predictions UX). **Phase F — SP-061a–061d + SP-062a–062c DONE** (chemistry parse). **Phase G — SP-062d DONE** (chemistry golden validate: stored 302, core gate PASS). **Phase H — ship + docs DONE** (`f111c60`, PR #2 merged `ced6aa1`; Track B UAT PASS). **DEFERRED:** SP-064d.1 (chemistry extended PASS), SP-014 observability, SP-063 extended unit/topic validate (advisory), exam golden set, SP-041.
 
 **Gate remediation (2026-06-19):** Full `quick_gate` FAIL was env/data, not a code regression. Root cause of OOC 8/10: `engineering chemistry updated.pdf` was wrongly ingested under `course_id=PPL`, so `ppl-ooc-04`/`ppl-ooc-06` retrieved chemistry pages instead of refusing. Fixed by pruning the mis-ingested doc from PPL (`apps/api/scripts/cleanup_ppl_corpus.py`); the `chemistry` course keeps its copy. pytest "too many clients"/deadlock was eval+pytest connection overlap. **Post-fix: OOC 10/10, 0/40 in-corpus refused, pytest 346 passed.**
 
@@ -88,7 +90,7 @@ This is the **single source of truth** for execution status. A new Cursor chat s
 | **S — Flex Study** | **DONE** | — |
 | **B — Full product shell** | **DONE** | 012a–012d + **012.5** polish complete |
 | **C — Platform** | **DONE** (planned slices) | 013a–c, 045a/b, 004a complete; SP-014/041 deferred |
-| **E — Exam intelligence** | **DONE** (product surface) + **060f-a/b** | SP-060a–060e **DONE**; **SP-060f-a/b DONE**; **060f-c OPEN** |
+| **E — Exam intelligence** | **DONE** (product surface) + **060f-a/b/c** | SP-060a–060e **DONE**; **SP-060f DONE** (concepts + units) |
 | **F — Chemistry analytics** | **DONE** (code) | SP-061a–061d + **062a–062c DONE** |
 | **G — Chemistry golden UAT** | **DONE** | SP-062d: stored **302**; `exam_reference_report --validate` core PASS |
 | **H — Ship + docs** | **DONE** | H-a PR [#2](https://github.com/mohammedumar9919/studypilot-v2/pull/2) @ `f111c60`; H-b docs; Track B UAT PASS |
@@ -412,7 +414,8 @@ Retrieval untouched — no full eval for this closeout. Commit strategy: 3 logic
 | SP-060e `ExamAnalyticsPanel` + universal heatmap gate | **DONE** |
 | SP-060f-a heuristic `predictions` on analytics API | **DONE** — `predictions.py`; api-contracts **1.14.0** |
 | SP-060f-b predictions UI (`ExamAnalyticsPanel`) | **DONE** — Likely to appear section; `npm run build` PASS |
-| SP-060f-c syllabus/unit predictions | **OPEN** |
+| SP-060f-c syllabus/unit predictions | **DONE** — SP-064f: `predictions.units[]`/`topics[]`; api-contracts **1.17.0** |
+| SP-064f Phase I closeout | **DONE** — unit Likely section + empty states |
 | SP-065 likely-topics answer-on-tap reliability | **DONE** | Label/alias study query + one short retry; linked stems for `llm_budget_tier` only; no `retrieve.py`/`gate.py` change |
 | Auto-map concepts → syllabus nodes; unmapped list; rollup | **DONE** |
 | `pytest test_exam_analytics_structure.py` | **6/6 PASS** |
@@ -421,7 +424,7 @@ Retrieval untouched — no full eval for this closeout. Commit strategy: 3 logic
 | `npm run build` (060e/060f-b web) | **PASS** |
 | api-contracts **1.14.0** | **DONE** (060f-a) |
 
-**Council Stage 3:** SP-060d closed (2026-07-03). `pytest test_exam_answer.py` **7/7**; `quick_gate.ps1 -Smoke` **100% P@5 (10/10)** (`generate.py` budget override only). SP-060e closed (2026-07-03). Web-only — `npm run build` PASS. **SP-060f-a closed (2026-08-23)** — API predictions block. **SP-060f-b closed (2026-08-23)** — Likely topics UI in `ExamAnalyticsPanel`. **SP-065 closed (2026-08-23)** — concept tap study query rewrite; `pytest test_exam_answer.py` **11/11**; `retrieve.py`/`gate.py`/`rerank.py` untouched.
+**Council Stage 3:** SP-060d closed (2026-07-03). `pytest test_exam_answer.py` **7/7**; `quick_gate.ps1 -Smoke` **100% P@5 (10/10)** (`generate.py` budget override only). SP-060e closed (2026-07-03). Web-only — `npm run build` PASS. **SP-060f-a closed (2026-08-23)** — API predictions block. **SP-060f-b closed (2026-08-23)** — Likely topics UI in `ExamAnalyticsPanel`. **SP-064f / SP-060f-c closed (2026-08-24)** — unit/topic predictions + empty states; api-contracts **1.17.0**. **SP-065 closed (2026-08-23)** — concept tap study query rewrite; `pytest test_exam_answer.py` **11/11**; `retrieve.py`/`gate.py`/`rerank.py` untouched.
 
 ---
 
@@ -468,12 +471,10 @@ Retrieval untouched — no full eval for this closeout. Commit strategy: 3 logic
 
 | # | Priority | Item | Owner |
 |---|----------|------|-------|
-| 1 | **NEXT** | SP-064f ExamAnalyticsPanel universal pack wiring | — (do not start until asked) |
-| 2 | **NEXT** | SP-064d follow-up — Unit I (−7) + fuels/composites topic drift | — |
-| 3 | **NEXT** | SP-060f-c syllabus/unit predictions (beyond concepts) | — |
-| 4 | **DEFER** | SP-014 observability / RAGAS | — |
-| 5 | **DEFER** | SP-063 extended unit/topic validate — 063b partial (Unit I/II + 4 topics remain) | — |
-| 6 | **DEFER** | Exam golden set (human approval) | — |
+| 1 | **NEXT** | SP-064d.1 chemistry extended validate PASS (Unit I / fuels / composites) | — |
+| 2 | **DEFER** | SP-014 observability / RAGAS | — |
+| 3 | **DEFER** | SP-063 extended unit/topic validate — advisory | — |
+| 4 | **DEFER** | Exam golden set (human approval) | — |
 
 ---
 
