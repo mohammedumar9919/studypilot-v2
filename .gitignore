@@ -6,6 +6,7 @@ __pycache__/
 .pytest_cache/
 eval/reports/
 pgdata/
+eval/fixtures/**/*.pdf
 
 # Runtime upload store (regenerable; not source)
 apps/api/.uploads/
