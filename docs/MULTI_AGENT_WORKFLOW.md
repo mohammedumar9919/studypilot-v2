@@ -2,7 +2,7 @@
 
 How to run **lead orchestrator + worker agents** in StudyPilot v2 **without** Cursor Multitask Mode — faster, visible, and avoids empty agent-shell issues.
 
-**Related:** [LEAD_ORCHESTRATOR.md](LEAD_ORCHESTRATOR.md) · [NEW_CHAT_PROMPT.md](NEW_CHAT_PROMPT.md) · [CURRENT_STATE.md](CURRENT_STATE.md) · [AGENTS.md](../AGENTS.md)
+**Related:** [LEAD_ORCHESTRATOR.md](LEAD_ORCHESTRATOR.md) · [NEW_CHAT_PROMPT.md](NEW_CHAT_PROMPT.md) · [CURRENT_STATE.md](CURRENT_STATE.md) · [AGENTS.md](../AGENTS.md) · [onboarding/](onboarding/README.md) (human assistant + Cursor baseline)
 
 ---
 

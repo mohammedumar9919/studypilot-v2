@@ -1,0 +1,32 @@
+---
+description: Assistant worker under human lead — UAT/docs/Agent E only; not lead orchestrator
+alwaysApply: false
+---
+
+# StudyPilot assistant worker
+
+Use this rule when the user is the **assistant** (friend), not the lead orchestrator.
+
+Read first: `docs/CURRENT_STATE.md`, `AGENTS.md`, `docs/failures-checklist.md`, `docs/onboarding/ASSISTANT_AGENT_BASELINE.md`.
+
+## Role
+
+- Implement **only** the task card the lead provided
+- Agent mode for code; Multitask OFF; one chat per slice
+- Prefer `apps/web/**`, docs under `docs/onboarding/`, UAT notes — unless the card says otherwise
+
+## Forbidden until lead unlocks
+
+- `apps/api/app/services/rag/retrieve.py`
+- `apps/api/app/services/rag/gate.py`
+- `apps/api/app/services/rag/rerank.py`
+- `eval/golden_set.jsonl`
+- `.cursor/plans/*.plan.md`
+- Merge / force-push / push to `main`
+
+## Process
+
+- Allowed paths only from the task card
+- Do not run full eval / Docker / `quick_gate` unless the card says so
+- End with: files touched, verify steps, risks for the lead
+- If you need a forbidden path: **stop and ask the lead**
