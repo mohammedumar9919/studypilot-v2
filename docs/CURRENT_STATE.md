@@ -471,10 +471,11 @@ Retrieval untouched — no full eval for this closeout. Commit strategy: 3 logic
 
 | # | Priority | Item | Owner |
 |---|----------|------|-------|
-| 1 | **NEXT** | SP-064d.1 chemistry extended validate PASS (Unit I / fuels / composites) | — |
-| 2 | **DEFER** | SP-014 observability / RAGAS | — |
-| 3 | **DEFER** | SP-063 extended unit/topic validate — advisory | — |
-| 4 | **DEFER** | Exam golden set (human approval) | — |
+| 1 | **NEXT** | SP-071 syllabus UNIT header OCR (SS syllabus repro) | — |
+| 2 | **NEXT** | Human assistant onboarding — [docs/onboarding/](onboarding/README.md) | Lead + friend |
+| 3 | **DEFER** | SP-064d.2 chemistry topic buckets OR Human Gate | — |
+| 4 | **DEFER** | SP-014 observability / RAGAS | — |
+| 5 | **DEFER** | Exam golden set (human approval) | — |
 
 ---
 
