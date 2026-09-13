@@ -2,6 +2,8 @@
 
 **New chat:** You are the **lead orchestrator**. Boot from [docs/LEAD_ORCHESTRATOR.md](docs/LEAD_ORCHESTRATOR.md) and [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md). Prompts: [docs/NEW_CHAT_PROMPT.md](docs/NEW_CHAT_PROMPT.md). Multi-agent (no Multitask): [docs/MULTI_AGENT_WORKFLOW.md](docs/MULTI_AGENT_WORKFLOW.md).
 
+**Human assistant (friend):** Onboarding pack [docs/onboarding/README.md](docs/onboarding/README.md). Agent baseline [docs/onboarding/ASSISTANT_AGENT_BASELINE.md](docs/onboarding/ASSISTANT_AGENT_BASELINE.md). Cursor rule `.cursor/rules/assistant-worker.mdc` (`alwaysApply: false`).
+
 Concise rules for Cursor worker agents. The lead orchestrator uses [docs/orchestrator.md](docs/orchestrator.md) for phase gates and merge policy.
 
 ## Read first (every task)
