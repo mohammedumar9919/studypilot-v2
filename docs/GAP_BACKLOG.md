@@ -1,7 +1,7 @@
 # StudyPilot v2 — Gap Backlog (reconciled)
 
 **Source:** `StudyPilot-v2-Gap-Backlog-and-MedX-Learnings.md` (2026-05-29)  
-**Reconciled:** 2026-06-15 against repo state (Phase S DONE; **Phase B SP-012 DONE**)  
+**Reconciled:** 2026-11-11 against repo state (Phases E–I DONE; **Phase II multi-subject IN PROGRESS**)  
 **MedX reference:** UX/information architecture only — not backend model
 
 ---
@@ -43,6 +43,25 @@
 | SP-018 | Second course (Chemistry) | **DONE** | Waves 6.5–7 + SP-044/044.1 outline fixes |
 | SP-019 | Contextual chunk prefixes | **OPEN** | Quality uplift if regressions appear |
 | SP-020 | docker-compose full profile | **OPEN** | Wave 3 |
+
+---
+
+## P1 — Phase II multi-subject (reconciled 2026-11-11)
+
+Rule: every exam/syllabus fix must be **universal** and proven on **2+ subjects** via fixtures (Chemistry, CN, Data Science, SS). See [CURRENT_STATE.md](CURRENT_STATE.md) § Phase II.
+
+| ID | Item | Status | Notes |
+|----|------|--------|-------|
+| SP-064d.2 | Chemistry extended topics (Polymers / Composites / Solid Fuels) | **DEFER** | Or Human Gate on positional-vs-content golden policy |
+| SP-070a | PPL full-corpus golden | **PARKED** | Papers unreadable; WIP on local `wip/sp-070a-stash` |
+| SP-071 | Syllabus UNIT header OCR normalize (SS) | **PARTIAL** | Code + tests on local `wip/sp-071-stash`; needs verify + merge + user re-import |
+| SP-072 | SS onboarding (structure UAT, parse audit, golden + validate) | **OPEN** | After SP-071; golden needs human tagging |
+| SP-070b | CN subject pack | **OPEN** | Only overrides proven by fixtures |
+| SP-070c | Subject onboard CLI | **OPEN** | syllabus import → parse audit → golden template |
+| SP-070d | Shared taxonomy helpers | **OPEN** | Extract from chemistry taxonomy |
+| SP-070e | CI subject fixture matrix | **OPEN** | Fixture-only; no PDFs (public repo) |
+| SP-073 | Eval Gate CI reliability | **OPEN** | Checks often never post / pytest step hangs; merges use manual green |
+| SP-074 | Public-repo fixture policy | **DONE** | PDFs local-only + gitignored; loud pytest/CI skip warnings; LFS history purge = Human Gate |
 
 ---
 

@@ -3,6 +3,8 @@
 **File:** [PPL_GOLDEN_REFERENCE.json](./PPL_GOLDEN_REFERENCE.json)  
 **Schema:** [golden_reference.schema.json](./golden_reference.schema.json)
 
+> **Status (2026-11-11): PARKED.** PPL exam analytics is paused — the scanned papers are too hard to read for reliable parse. `exam_reference_report --validate --course PPL` fails on **scope mismatch**, not a parser regression: this golden covers the **page-3 seed only** (1 paper / 17 mains / 25 subparts) while the app DB holds the **full** papers PDF. SP-070a WIP (full-corpus golden) is on local branch `wip/sp-070a-stash`. PPL notes remain the retrieval eval corpus (`eval/golden_set.jsonl`, local-only PDFs). Signals and Systems is the active second subject.
+
 ## Sources
 
 | Artifact | Role |

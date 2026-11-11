@@ -15,6 +15,22 @@ from app.models import Course
 from app.services.workspaces import SYSTEM_DEMO_WORKSPACE_ID
 
 API_ROOT = Path(__file__).resolve().parents[1]
+PPL_NOTES_PDF = API_ROOT.parents[1] / "eval" / "fixtures" / "ppl" / "PPL notes.pdf"
+_PPL_FIXTURE_WARNING = (
+    "WARNING: eval/fixtures/ppl/*.pdf missing (gitignored in public repo) - "
+    "PPL retrieval/ingest tests will SKIP; restore locally before trusting a green run"
+)
+
+
+def pytest_report_header(config):
+    if not PPL_NOTES_PDF.exists():
+        return _PPL_FIXTURE_WARNING
+    return None
+
+
+def pytest_terminal_summary(terminalreporter, exitstatus, config):
+    if not PPL_NOTES_PDF.exists():
+        terminalreporter.write_sep("=", _PPL_FIXTURE_WARNING, yellow=True, bold=True)
 
 # Serialize TRUNCATE when multiple pytest processes share studypilot_test.
 _TEST_DB_ADVISORY_LOCK = 424242

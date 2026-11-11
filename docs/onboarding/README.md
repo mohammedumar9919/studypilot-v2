@@ -10,6 +10,7 @@ Everything needed to bring a human assistant onto StudyPilot **before** the live
 | [GITHUB_SETUP.md](GITHUB_SETUP.md) | **Lead + assistant** | Collaborator invite, clone, branch, PR rules |
 | [FIRST_TASKS.md](FIRST_TASKS.md) | **Lead assigns** | Ready task cards (UAT → SS repro → first UI) |
 | [COLLABORATION.md](COLLABORATION.md) | Both | How humans + Cursor agents work together (no Grokbot-style group chat) |
+| [PLANNER_AGENT_BOOT.md](PLANNER_AGENT_BOOT.md) | **Lead's planner chat** | Boot doc for a new Cursor chat acting as planner / lead orchestrator |
 
 **Cursor rule (repo):** [`.cursor/rules/assistant-worker.mdc`](../../.cursor/rules/assistant-worker.mdc) — `alwaysApply: false`; assistant @-mentions it or copies baseline into User Rules.
 

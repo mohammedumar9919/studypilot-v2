@@ -1,6 +1,6 @@
 # StudyPilot v2 — Current State
 
-**Last updated:** 2026-08-24  
+**Last updated:** 2026-11-11  
 **Status owner:** Lead orchestrator (update this file after every phase gate or major eval run)
 
 This is the **single source of truth** for execution status. A new Cursor chat should read this first, then [LEAD_ORCHESTRATOR.md](LEAD_ORCHESTRATOR.md) and [COUNCIL_ORCHESTRATION.md](COUNCIL_ORCHESTRATION.md).
@@ -72,13 +72,16 @@ This is the **single source of truth** for execution status. A new Cursor chat s
 | SP-064c golden reference framework | **DONE** | `golden_reference.schema.json`; PPL golden + validate loader; pytest schema + chemistry |
 | SP-064e PPL subject pack | **DONE** | `PplPack`; registry + fixture delegation; `exam_parse_audit --course PPL`; pytest registry |
 | SP-064d chemistry taxonomy tuning | **DONE (partial)** | Extended 4/5 units + 7/10 top topics vs 063b 3/5 + 6/10; core PASS unchanged |
-| SP-064d.1 chemistry extended validate | **DONE (partial)** | 5/5 units + 8/10 topics; Fuels — General + Unit I flipped OK; core PASS |
+| SP-064d.1 chemistry extended validate | **DONE (partial)** | 5/5 units + 8/10 topics; Fuels — General + Unit I flipped OK; core PASS; [PR #6](https://github.com/mohammedumar9919/studypilot-v2/pull/6) merged `2b55255` |
 | SP-064f Phase I closeout (unit predictions + UX) | **DONE** | SP-060f-c units/topics; ExamAnalytics empty states; api-contracts **1.17.0** |
-| SP-064d.1 chemistry extended validate PASS | **DEFER** | Specific Polymers / Solid Fuels / Composites topic drift — 8/10 topics, 5/5 units |
+| SP-064d.2 chemistry extended topics PASS | **DEFER** | Specific Polymers (31 vs 23) / Composites (15 vs 13) / Solid Fuels (15 vs 12) topic drift — 8/10 topics, 5/5 units |
+| SP-071 syllabus UNIT header OCR normalize | **WIP (uncommitted)** | Code + tests on local branch `wip/sp-071-stash`; SS fixture on `wip/sp-071-fixture^3`; not verified, not on `main` |
+| Assistant onboarding pack | **DONE** | `docs/onboarding/`; [PR #7](https://github.com/mohammedumar9919/studypilot-v2/pull/7) merged `5a6cdf7` |
+| Public repo + fixture policy | **DONE** | `99b30aa` — MIT + portfolio README; PPL PDFs local-only (gitignored); see **Public repo + fixtures** |
 | SP-065 likely-topics answer-on-tap query rewrite | **DONE** | Concept tap uses label+aliases study query (not exam stem); study lane only; retry label-only; pytest `test_exam_answer.py` |
 | Phase H — ship + docs UAT closeout | **DONE** | H-a: push `f111c60` + [PR #2](https://github.com/mohammedumar9919/studypilot-v2/pull/2); H-b: UAT ref + this file; Track B user UAT PASS |
 
-**Status:** **Phase B — fully closed** (012a–d + **012.5 polish**). **Phase C — Platform slices DONE** (013a–c, 045a/b, 004a). **Phase E — SP-060a–060e DONE**; **SP-060f-a/b/c DONE** (concept + unit predictions). **Phase I (064a–f) — DONE** (subject packs + golden framework + PPL pack + taxonomy partial + unit predictions UX). **Phase F — SP-061a–061d + SP-062a–062c DONE** (chemistry parse). **Phase G — SP-062d DONE** (chemistry golden validate: stored 302, core gate PASS). **Phase H — ship + docs DONE** (`f111c60`, PR #2 merged `ced6aa1`; Track B UAT PASS). **DEFERRED:** SP-064d.1 (chemistry extended PASS), SP-014 observability, SP-063 extended unit/topic validate (advisory), exam golden set, SP-041.
+**Status:** **Phase B — fully closed** (012a–d + **012.5 polish**). **Phase C — Platform slices DONE** (013a–c, 045a/b, 004a). **Phase E — SP-060a–060e DONE**; **SP-060f-a/b/c DONE** (concept + unit predictions). **Phase I (064a–f) — DONE** (subject packs + golden framework + PPL pack + taxonomy partial + unit predictions UX). **Phase F — SP-061a–061d + SP-062a–062c DONE** (chemistry parse). **Phase G — SP-062d DONE** (chemistry golden validate: stored 302, core gate PASS). **Phase H — ship + docs DONE** (`f111c60`, PR #2 merged `ced6aa1`; Track B UAT PASS). **SP-064d.1 merged** (PR #6). **Phase II (multi-subject) — IN PROGRESS:** Signals and Systems (SS) is subject #2; SP-071 WIP. **DEFERRED:** SP-064d.2 (chemistry extended topics), SP-014 observability, exam golden set, SP-041, Eval Gate CI reliability.
 
 **Gate remediation (2026-06-19):** Full `quick_gate` FAIL was env/data, not a code regression. Root cause of OOC 8/10: `engineering chemistry updated.pdf` was wrongly ingested under `course_id=PPL`, so `ppl-ooc-04`/`ppl-ooc-06` retrieved chemistry pages instead of refusing. Fixed by pruning the mis-ingested doc from PPL (`apps/api/scripts/cleanup_ppl_corpus.py`); the `chemistry` course keeps its copy. pytest "too many clients"/deadlock was eval+pytest connection overlap. **Post-fix: OOC 10/10, 0/40 in-corpus refused, pytest 346 passed.**
 
@@ -468,15 +471,44 @@ Retrieval untouched — no full eval for this closeout. Commit strategy: 3 logic
 
 ---
 
+## Phase II — Multi-subject accuracy (anti-overfit)
+
+**Goal:** every exam/syllabus feature proven on **2+ subjects** via fixtures, not tuned to chemistry. Subjects with fixtures today: Chemistry (exam golden), CN + Data Science (syllabus structure), SS (syllabus OCR, pending SP-071).
+
+| Slice | Status | Notes |
+|-------|--------|-------|
+| SP-070a PPL full corpus golden | **PARKED** | PPL papers too hard to read; WIP preserved on local branch `wip/sp-070a-stash` (PplPack + audit + golden schema edits, ~1.1k lines, unverified) |
+| SP-071 SS syllabus UNIT header OCR | **WIP** | Root cause: OCR/encoding damage on UNIT index (`UNIT \ufffd1`, `UNIT \ufffd II`, `UNIT -1IV`) → only III + V matched. Fix: `_normalize_engineering_unit_header_line()` before `_match_engineering_syllabus_unit_header` (NFKC, FFFD/junk strip, dash fold, glued `-1IV` → `IV`) + sparse-unit warning. Code on local `wip/sp-071-stash`; fixture `ss_signals_systems_ocr_units.txt` on local `wip/sp-071-fixture^3` (recovery commands in [onboarding/PLANNER_AGENT_BOOT.md](onboarding/PLANNER_AGENT_BOOT.md)) |
+| SS onboarding (golden + validate) | **QUEUED** | After SP-071: SS course structure 5/5, SS papers parse audit, `SS_GOLDEN_REFERENCE.json` (human-tagged), `exam_reference_report --validate --course SS` |
+| SP-070b CN subject pack | **QUEUED** | GenericPack → CN-specific overrides only if fixtures prove need |
+| SP-070c subject onboard CLI | **QUEUED** | One command: syllabus import → parse audit → golden template |
+| SP-070d taxonomy helpers | **QUEUED** | Shared bucket helpers extracted from chemistry taxonomy |
+| SP-070e CI subject matrix | **QUEUED** | Fixture-only pytest matrix across subjects (no PDFs needed) |
+
+**Known asymmetry:** structure import (`_parse_engineering_syllabus_structure`) allows Arabic `UNIT 1`; Course Map promote (`extract_outline_from_pdf` → `syllabus_block`) does **not**. Both share `_match_engineering_syllabus_unit_header` — fix there, test both paths.
+
+---
+
+## Public repo + fixtures
+
+- Repo is **public** (`github.com/mohammedumar9919/studypilot-v2`, MIT) since `99b30aa`.
+- `eval/fixtures/**/*.pdf` is gitignored. PPL PDFs (`PPL notes.pdf`, `PPL previous papers.pdf`) are **local-only**; restore from `.git/lfs/objects` (OIDs `940ab309…`, `d2f3afd6…`) if missing. **Gotcha:** checking out or rebasing any branch based before `99b30aa` (where the PDFs were tracked) deletes the local copies — re-copy afterwards.
+- Without them ~20 retrieval/ingest tests **skip** (pytest prints a loud header + summary warning) and CI `retrieval-gate` skips with a warning. **The 100% P@5 / OOC 10/10 gate is local-only** (`quick_gate.ps1`).
+- Older LFS objects remain reachable in public git history; purging history is a **Human Gate** decision.
+
+---
+
 ## What's NEXT
 
 | # | Priority | Item | Owner |
 |---|----------|------|-------|
-| 1 | **NEXT** | SP-071 syllabus UNIT header OCR (SS syllabus repro) | — |
-| 2 | **NEXT** | Human assistant onboarding — [docs/onboarding/](onboarding/README.md) | Lead + friend |
-| 3 | **DEFER** | SP-064d.2 chemistry topic buckets (Specific Polymers / Solid Fuels / Composites) OR Human Gate on golden positional policy | — |
-| 4 | **DEFER** | SP-014 observability / RAGAS | — |
-| 5 | **DEFER** | Exam golden set (human approval) | — |
+| 1 | **NEXT** | SP-071 finish: restore `wip/sp-071-stash` + fixture onto `sp-071-syllabus-unit-ocr`, verify CN/DS/SS fixtures, user re-imports `ss syllabus.pdf` (Units I–V) | Planner → worker |
+| 2 | **NEXT** | SS onboarding: structure UAT, papers parse audit, SS golden reference + validate | Planner → worker + human tagging |
+| 3 | **NEXT** | Human assistant onboarding — [docs/onboarding/](onboarding/README.md) | Lead + friend |
+| 4 | **QUEUED** | SP-070b CN pack → SP-070c onboard CLI → SP-070d taxonomy helpers → SP-070e CI matrix | — |
+| 5 | **DEFER** | SP-064d.2 chemistry topic buckets (Specific Polymers / Solid Fuels / Composites) OR Human Gate on golden positional policy | — |
+| 6 | **DEFER** | Eval Gate CI reliability (checks often never post / pytest step hangs) — merges use manual green | — |
+| 7 | **DEFER** | SP-014 observability / RAGAS; exam golden set (human approval); SP-041 LLM outline | — |
 
 ---
 
