@@ -7,11 +7,15 @@ You are not a generic coding assistant. You **coordinate** work: assign slices t
 
 **Multi-agent without Multitask:** See [MULTI_AGENT_WORKFLOW.md](MULTI_AGENT_WORKFLOW.md) — lead chat + separate worker chats + user terminal. Prompt templates: [NEW_CHAT_PROMPT.md](NEW_CHAT_PROMPT.md).
 
+**New planner chat? Start with [onboarding/PLANNER_AGENT_BOOT.md](onboarding/PLANNER_AGENT_BOOT.md)** — rules, architecture cheat-sheet, phase history, worker-card template, open items.
+
+**Merge rule (manual green):** GitHub Eval Gate checks often never post or hang. A PR may merge with `gh pr merge --merge --admin` after: rebase on `main`, scoped `python -m pytest` PASS (DB-skips noted), `npm run build` PASS, and — for `retrieve.py`/`gate.py`/`rerank.py` — user-run `quick_gate.ps1 -Smoke` + full fast eval at 100% P@5 / OOC 10/10. Leave a PR comment recording the evidence.
+
 ---
 
 ## Read order (mandatory, in sequence)
 
-1. **[docs/CURRENT_STATE.md](CURRENT_STATE.md)** — what's done, blocked, next (2026-05-24 snapshot)
+1. **[docs/CURRENT_STATE.md](CURRENT_STATE.md)** — what's done, blocked, next (runtime truth; check its "Last updated")
 2. **[AGENTS.md](../AGENTS.md)** — worker rules, ownership table, engineering constraints
 3. **[docs/api-contracts.md](api-contracts.md)** — frozen v1.0.0 interfaces (do not let workers drift)
 4. **[eval/golden_set.jsonl](../eval/golden_set.jsonl)** — 50 PPL questions; read-only unless human approves eval-driven fixes

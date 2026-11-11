@@ -95,9 +95,8 @@ jobs:
       - name: Skip retrieval gate (fixtures not in repo)
         if: steps.fixtures.outputs.present != 'true'
         run: |
-          echo "::warning::PPL PDF fixtures missing — skipping 100% retrieval gate in CI."
-          echo "Run locally: MIN_RERANK_SCORE=0.35 ./scripts/ci_eval_gate.sh"
-          echo "Or add fixtures via Git LFS — see docs/CI_SETUP.md"
+          echo "::warning::PPL fixtures absent (public repo) - retrieval gate is local-only. Run scripts/quick_gate.ps1 locally before merging retrieval changes."
+          echo "Policy: docs/CURRENT_STATE.md (Public repo + fixtures)"
       - uses: actions/setup-python@v5
         if: steps.fixtures.outputs.present == 'true'
         with:
